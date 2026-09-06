@@ -1,0 +1,91 @@
+name: Drawer
+options:
+  bundleIdPrefix: com.advegaf
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "5"
+    # Signed with a stable identity on purpose. Automation approval (for the
+    # dark mode and Empty Trash tiles) is remembered per signed binary, so an
+    # unsigned or ad-hoc build would get a new identity on every rebuild and
+    # lose that approval, and the prompt would come back after every `make run`.
+    CODE_SIGN_IDENTITY: "Apple Development"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: DV483F72N3
+    CODE_SIGNING_REQUIRED: "YES"
+    CODE_SIGNING_ALLOWED: "YES"
+    # Sandbox off: the app runs system tools (osascript, defaults) and reads
+    # the Shortcuts list, which a sandboxed app cannot do.
+    ENABLE_APP_SANDBOX: "NO"
+    # Hardened runtime on because the signing identity requires it. It still
+    # allows dlopen of Apple's own private frameworks, which the Bluetooth,
+    # brightness, Night Shift and lock screen tiles depend on.
+    ENABLE_HARDENED_RUNTIME: "YES"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+targets:
+  Drawer:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    # Sending Apple Events from a hardened runtime app needs this entitlement.
+    # Without it the dark mode and Empty Trash tiles fail with -1743 and macOS
+    # never shows the Automation prompt or lists the app under Automation.
+    entitlements:
+      path: Sources/Drawer.entitlements
+      properties:
+        com.apple.security.automation.apple-events: true
+    info:
+      path: Sources/Info.plist
+      properties:
+        # Deliberately a normal Dock app, not an `LSUIElement` agent. The
+        # notch is ambient, but the *app* still has to be findable: without a
+        # Dock tile there is nothing to click to open it, nothing in Cmd-Tab,
+        # and no obvious way to reach settings or quit.
+        CFBundleName: Drawer
+        CFBundleDisplayName: Drawer
+        LSMinimumSystemVersion: "26.0"
+        # Sources/Info.plist is *generated* from this block, so editing that
+        # file directly is undone by the next `make gen`. Pointing both at the
+        # build settings keeps one place to bump.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSAppleEventsUsageDescription: "Drawer uses System Events and Finder for Dark mode, Start Screen Saver, and Empty Trash."
+        NSBluetoothAlwaysUsageDescription: "Drawer reads and sets Bluetooth power for the Bluetooth tile."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.advegaf.drawer
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  DrawerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Drawer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.advegaf.drawer.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  Drawer:
+    build:
+      targets:
+        Drawer: all
+        DrawerTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - DrawerTests

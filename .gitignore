@@ -1,0 +1,27 @@
+.DS_Store
+build/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+!*.xcworkspace/contents.xcworkspacedata
+xcuserdata/
+*.xcuserstate
+.swiftpm/
+
+# A global ignore rule for the Finder "Icon" resource-fork stub matches this
+# directory case-insensitively (core.ignorecase); un-ignore it explicitly.
+!Design/icon/
+
+# Release build products. The DMG is uploaded to a GitHub release rather
+# than committed, and the intermediate archive and notary logs are large
+# and rebuildable.
+dist/
+.build-release/
+# Generated installer backgrounds. The one source asset beside them, the
+# capture of the real drawer, is committed.
+Design/Installer/background*
+
+# Finder resource-fork stubs, which appear whenever a folder gets a
+# custom icon and are never wanted here.
+Icon?
+artifacts/
