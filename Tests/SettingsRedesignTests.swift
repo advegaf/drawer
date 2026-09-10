@@ -255,6 +255,27 @@ final class SettingsRedesignTests: XCTestCase {
     /// Lays the page out in a window the shape of the real one and hands
     /// back the hosting view, so a test can read what actually got laid
     /// out rather than what the view asked for.
+    /// A library that is still being read is not an empty library. The page
+    /// drew "No items. Choose another category." beside its own Loading apps
+    /// spinner, because the empty state only asked whether the filtered list
+    /// was empty and never whether the catalog had arrived.
+    func testTheEmptyStateWaitsUntilTheCategoryHasActuallyLoaded() {
+        let name = "LibraryLoading.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let session = SettingsSession(page: .items)
+        let apps = AppCatalog()
+        let page = ItemsPage(preferences: Preferences(defaults: defaults), shortcuts: ShortcutsCatalog(),
+                             apps: apps, editor: DrawerEditor(), session: session)
+
+        session.category = .apps
+        XCTAssertNil(apps.apps, "a fresh catalog should not have read the disk yet")
+        XCTAssertTrue(page.isLoadingCategory, "Apps with no catalog yet counts as loading, not as empty")
+
+        session.category = .actions
+        XCTAssertFalse(page.isLoadingCategory, "the action list is built in code and is never loading")
+    }
+
     private func layOutItemsPage(width: CGFloat, height: CGFloat) -> NSView {
         let name = "SettingsMinimumTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

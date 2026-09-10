@@ -154,6 +154,20 @@ struct ItemsPage: View {
         }
     }
 
+    /// Whether the category on screen is still being read.
+    ///
+    /// "No items" next to a spinner is a lie: nothing has been counted yet.
+    /// Shortcuts only counts as loading while there is no earlier list to
+    /// show, because a refresh that keeps yesterday's names on screen is not
+    /// an empty category.
+    var isLoadingCategory: Bool {
+        switch session.category {
+        case .apps: return apps.apps == nil
+        case .shortcuts: return shortcuts.isLoading && shortcuts.names == nil
+        case .actions: return false
+        }
+    }
+
     private var searchField: some View {
         HStack(spacing: SettingsStyle.s8) {
             Image(systemName: "magnifyingglass")
@@ -180,7 +194,7 @@ struct ItemsPage: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleEntries) { entry in libraryRow(entry) }
-                    if visibleEntries.isEmpty {
+                    if visibleEntries.isEmpty && !isLoadingCategory {
                         ContentUnavailableView(session.query.isEmpty ? "No items" : "No matches", systemImage: "magnifyingglass",
                             description: Text(session.query.isEmpty ? "Choose another category." : "Try a different search."))
                     }
