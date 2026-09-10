@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Drawer
 
@@ -82,6 +83,33 @@ final class RunnerTests: XCTestCase {
             update: { id, state, _ in recorder.recordUpdate(id, state) },
             openSettings: { recorder.note("openSettings") }
         )
+    }
+
+    // MARK: - Toggles that change without us
+
+    /// Dark mode and mute can both be changed anywhere else on the Mac, and
+    /// `ActionRegistry` gives each of them a publisher that says so. Nothing
+    /// subscribed to either one until `watchToggles`, so the ring kept its
+    /// old state until the items list happened to resolve again.
+    func testAToggleChangedElsewhereReachesTheCellWithoutAReResolve() async {
+        let recorder = Recorder()
+        let outside = PassthroughSubject<Bool, Never>()
+        let runner = makeRunner(recorder: recorder, controls: [
+            .mute: .toggle(read: { false }, write: { _ in }, observe: outside.eraseToAnyPublisher()),
+        ])
+        runner.watchToggles([.mute])
+
+        let cell = DrawerItem.action("mute").id
+        outside.send(true)
+        await waitUntil { recorder.state(cell) == .on }
+        XCTAssertEqual(recorder.state(cell), .on, "a mute change made outside Drawer never reached the cell")
+
+        // Unpinned, so the subscription goes with it.
+        runner.watchToggles([])
+        let before = recorder.events.count
+        outside.send(false)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(recorder.events.count, before, "an unpinned toggle kept publishing into the drawer")
     }
 
     // MARK: - Level updates

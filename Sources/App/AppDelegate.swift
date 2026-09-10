@@ -258,6 +258,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         }
                     }
                     controller.model.replaceCells(cells)
+                    // The pinned toggles that can change without us: dark
+                    // mode and mute both publish, and the cell only learns
+                    // about an outside change if something subscribes.
+                    self.runner?.watchToggles(items.compactMap {
+                        guard case .action(let raw) = $0 else { return nil }
+                        return ActionID(rawValue: raw)
+                    })
                 }
             }
             .store(in: &cancellables)

@@ -44,6 +44,7 @@ final class ActionRunner {
     var armWindow: TimeInterval = 3
     var failureDisplay: TimeInterval = 2
 
+    private var toggleWatches: [ActionID: AnyCancellable] = [:]
     private var armTimers: [String: DispatchWorkItem] = [:]
     private var latest: [String: () async -> Void] = [:]
     private var running: Set<String> = []
@@ -69,6 +70,30 @@ final class ActionRunner {
                 update(DrawerItem.action(id.rawValue).id, state, levels?.isInteracting(with: id) ?? true)
             }
             previous = states
+        }
+    }
+
+    /// Subscribes to the pinned toggles that can change without us.
+    ///
+    /// Two of them can: dark mode fires a distributed notification when the
+    /// system appearance changes, and mute publishes on every audio device
+    /// change. `ActionRegistry` has always built those publishers, and until
+    /// this existed nothing subscribed to either one, so a change made
+    /// anywhere else left the cell showing its old ring until the items list
+    /// happened to resolve again.
+    ///
+    /// Called with the whole pinned set rather than one id at a time, so an
+    /// item that has been removed drops its subscription with it.
+    func watchToggles(_ ids: [ActionID]) {
+        let wanted = Set(ids)
+        toggleWatches = toggleWatches.filter { wanted.contains($0.key) }
+        for id in wanted where toggleWatches[id] == nil {
+            guard case .toggle(_, _, let observe) = controlFor(id), let observe else { continue }
+            toggleWatches[id] = observe
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] on in
+                    self?.update(DrawerItem.action(id.rawValue).id, on ? .on : .off)
+                }
         }
     }
 
