@@ -11,21 +11,47 @@ import SwiftUI
 /// rather than failing silently, which is what an untrusted `CGEvent.post`
 /// does.
 enum InputPermission {
+    /// Remembered across launches, because macOS only honours the prompt the
+    /// first time a given signed copy asks, and asking again after that puts
+    /// a dialog on screen that can do nothing.
+    static let askedKey = "hasAskedAccessibility"
+    static var defaults: UserDefaults = .standard
+
     static var isTrusted: Bool { AXIsProcessTrusted() }
 
-    /// Opens the system prompt, once. macOS shows it only the first time a
-    /// process asks; after that the switch has to be found in System
-    /// Settings, so the message says where.
+    /// Apple's own prompt, which is the only one with a working Open System
+    /// Settings button. Shown at most once for this copy of the app.
     @discardableResult
-    static func request() -> Bool {
+    private static func requestOnce() -> Bool {
+        guard !defaults.bool(forKey: askedKey) else { return isTrusted }
+        defaults.set(true, forKey: askedKey)
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
 
+    /// The Accessibility pane, opened directly, since after the first ask the
+    /// only remaining path is the switch in System Settings.
+    static var openSettings: () -> Void = {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// The sentence a cell shows when the permission is missing.
+    ///
+    /// The second half of it is the part that matters and the part nobody
+    /// guesses: macOS grants Accessibility to a signed copy, not to a name.
+    /// A Debug build and a Developer ID build are two different apps wearing
+    /// the same one, and reinstalling leaves the old row switched on while
+    /// the new copy is refused. Switching that row off and on again is what
+    /// repairs it.
+    static let missing = "Drawer needs Accessibility. If it is already listed in Privacy and Security, switch it off and on again."
+
     static func require() throws {
         guard !isTrusted else { return }
-        request()
-        throw ActionError.failed("Allow Drawer in System Settings > Privacy & Security > Accessibility")
+        let asked = defaults.bool(forKey: askedKey)
+        requestOnce()
+        if asked { openSettings() }
+        throw ActionError.failed(missing)
     }
 }
 

@@ -144,15 +144,144 @@ final class SystemActionsTests: XCTestCase {
         }
     }
 
+    // MARK: - Force quit
+
+    /// Force Quit used to send Command Option Escape through System Events,
+    /// which opens Apple's picker window and quits nothing. It now kills the
+    /// app that was in front, the same one Quit App targets.
+    @MainActor
+    func testForceQuitTargetsTheAppThatWasInFrontAndSaysSoWhenThereIsNone() {
+        XCTAssertThrowsError(try SystemActions.forceQuit(nil)) {
+            XCTAssertEqual($0 as? ActionError, .unavailable, "no app in front is unavailable, not a failure")
+        }
+        // Destructive, so the cell arms first. The pairing of the two is what
+        // stops a misclick killing unsaved work.
+        if case .fire(let destructive) = ActionRegistry.kind[.forceQuit] {
+            XCTAssertTrue(destructive, "force quit has to arm before it fires")
+        } else {
+            XCTFail("force quit is not a fire action")
+        }
+        XCTAssertTrue(ActionRegistry.spec(for: .forceQuit).detail.contains("in front"),
+                      "the row still describes Apple's picker window")
+    }
+
+    // MARK: - Asking for a permission once
+
+    /// The prompt returned on every click, because `require` called the
+    /// prompting API each time it found the app untrusted. macOS honours it
+    /// once per signed copy, so every later call put a dialog on screen that
+    /// could not grant anything.
+    @MainActor
+    func testTheAccessibilityPromptIsAskedForOnceAndThenTheSettingsPaneOpens() throws {
+        let name = "InputPermission.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defaults.removePersistentDomain(forName: name)
+        InputPermission.defaults = defaults
+        var opened = 0
+        InputPermission.openSettings = { opened += 1 }
+        defer {
+            InputPermission.defaults = .standard
+            InputPermission.openSettings = {}
+        }
+
+        guard !InputPermission.isTrusted else {
+            throw XCTSkip("this run is already trusted, so the untrusted path cannot be exercised")
+        }
+        XCTAssertThrowsError(try InputPermission.require())
+        XCTAssertTrue(defaults.bool(forKey: InputPermission.askedKey), "the first ask was not remembered")
+        XCTAssertEqual(opened, 0, "the first refusal shows Apple's prompt, not our pane")
+
+        XCTAssertThrowsError(try InputPermission.require())
+        XCTAssertEqual(opened, 1, "the second refusal should open the pane instead of prompting again")
+    }
+
+    // MARK: - Screen recording
+
+    /// `task.run()` succeeds the moment the binary is exec'd, so a refusal
+    /// that arrives a beat later used to leave the cell reading On with
+    /// nothing recording. The preflight is what stops it starting at all.
+    @MainActor
+    func testARecordingWithoutPermissionIsRefusedRatherThanStartedAndLost() throws {
+        let name = "ScreenRecording.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defaults.removePersistentDomain(forName: name)
+        ScreenRecording.defaults = defaults
+        ScreenRecording.preflight = { false }
+        var requested = 0
+        var opened = 0
+        ScreenRecording.request = { requested += 1; return false }
+        ScreenRecording.openSettings = { opened += 1 }
+        defer {
+            ScreenRecording.defaults = .standard
+            ScreenRecording.preflight = { CGPreflightScreenCaptureAccess() }
+            ScreenRecording.request = { CGRequestScreenCaptureAccess() }
+            ScreenRecording.openSettings = {}
+        }
+
+        let destination = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("\(UUID().uuidString).mov")
+        XCTAssertThrowsError(try ScreenRecording.shared.toggle(destination: destination)) {
+            XCTAssertEqual($0 as? ActionError, .failed(ScreenRecording.missing))
+        }
+        XCTAssertFalse(ScreenRecording.shared.isRunning, "a refused recording must not leave the cell reading On")
+        XCTAssertEqual(requested, 1, "the first refusal should show Apple's prompt")
+        XCTAssertEqual(opened, 0)
+
+        XCTAssertThrowsError(try ScreenRecording.shared.toggle(destination: destination))
+        XCTAssertEqual(requested, 1, "the prompt must not be asked for twice")
+        XCTAssertEqual(opened, 1, "the second refusal should open the pane instead")
+    }
+
+    // MARK: - The switches added this round
+
+    /// Ten new switches, each of which has to name a domain, a key and a real
+    /// symbol, and none of which may fall through to the battery percentage
+    /// default that `domain(for:)` ends with.
+    func testEachNewSwitchNamesItsOwnPreference() {
+        let added: [ActionID] = [.dockMagnification, .dockRecents, .minimizeIntoIcon, .clickWallpaper,
+                                 .finderPathBar, .finderStatusBar, .fileExtensions,
+                                 .screenshotThumbnail, .clockSeconds]
+        var keys: Set<String> = []
+        for id in added {
+            let spec = ActionRegistry.spec(for: id)
+            XCTAssertNotNil(NSImage(systemSymbolName: spec.symbol, accessibilityDescription: nil),
+                            "\(id) names a symbol this system does not have: \(spec.symbol)")
+            XCTAssertFalse(spec.detail.isEmpty, "\(id) has no detail line")
+            let domain = ActionRegistry.domain(for: id)
+            XCTAssertNotEqual(domain.key, "BatteryShowPercentage", "\(id) fell through to the default domain")
+            XCTAssertTrue(keys.insert("\(domain.identifier).\(domain.key)").inserted,
+                          "\(id) shares a preference with another switch")
+            guard case .toggle = spec.control else {
+                return XCTFail("\(id) should be a toggle")
+            }
+        }
+    }
+
+    /// True Tone hides itself on a Mac whose display has no ambient sensor,
+    /// the same way Bluetooth and brightness hide when their private symbol
+    /// will not resolve.
+    @MainActor
+    func testTrueToneIsEitherAvailableAndAToggleOrHiddenEntirely() {
+        if PrivateAPI.trueTone == nil {
+            XCTAssertFalse(ActionRegistry.isAvailable(.trueTone), "an unresolvable True Tone must not be offered")
+        } else {
+            guard case .toggle = ActionRegistry.spec(for: .trueTone).control else {
+                return XCTFail("True Tone resolved but is not a toggle")
+            }
+        }
+    }
+
     // MARK: - The registry
 
-    /// The four that cannot be taken back are the four that arm.
+    /// The ones that cannot be taken back are the ones that arm. Force Quit
+    /// joined them when it stopped opening Apple's picker window and started
+    /// killing the app in front, which loses unsaved work by definition.
     func testOnlyTheIrreversibleActionsAreDestructive() {
         let destructive = ActionID.allCases.filter {
             if case .fire(let isDestructive) = ActionRegistry.kind[$0] { return isDestructive }
             return false
         }
-        XCTAssertEqual(Set(destructive), [.emptyTrash, .ejectDisks, .restart, .shutDown, .logOut])
+        XCTAssertEqual(Set(destructive), [.emptyTrash, .ejectDisks, .restart, .shutDown, .logOut, .forceQuit])
     }
 
     /// Every new action resolves to a control that can actually run. A row
@@ -281,9 +410,47 @@ final class CellPickerTests: XCTestCase {
         XCTAssertTrue(CellPicker.has(.bluetooth))
         XCTAssertTrue(CellPicker.has(.volume))
         XCTAssertTrue(CellPicker.has(.mute))
+        XCTAssertTrue(CellPicker.has(.focus))
+        XCTAssertTrue(CellPicker.has(.micMute))
+        XCTAssertTrue(CellPicker.has(.micLevel))
         for id in [ActionID.darkMode, .brightness, .keepAwake, .quitApp, .screenRecording] {
             XCTAssertFalse(CellPicker.has(id), "\(id) should not carry a picker")
         }
+    }
+
+    /// The Focus picker lists the modes macOS ships and ticks none of them.
+    /// Nothing here can read the active mode without Full Disk Access, and a
+    /// checkmark that is wrong is worse than no checkmark at all.
+    @MainActor
+    func testTheFocusPickerListsModesWithoutClaimingWhichIsOn() {
+        let items = CellPicker.items(for: .focus, target: actions(), modes: ["Do Not Disturb", "Work"])
+        XCTAssertEqual(items.first?.title, "Focus modes", "the picker lost its header")
+        let dnd = items.first { $0.title == "Do Not Disturb" }
+        XCTAssertEqual(dnd?.representedObject as? String, "Do Not Disturb")
+        XCTAssertTrue(items.filter { $0.state == .on }.isEmpty, "a Focus item cannot know that it is the one that is on")
+        XCTAssertNotNil(items.first { $0.title == "Focus Settings..." }, "no way through to the real settings")
+    }
+
+    /// The Focus cell must not fall through to the output list. The picker's
+    /// default arm is the audio outputs, so a missing case would hand the
+    /// Focus cell a menu of speakers.
+    @MainActor
+    func testTheFocusCellDoesNotGetTheOutputMenu() {
+        let items = CellPicker.items(for: .focus, target: actions(), modes: ["Work"])
+        XCTAssertNotEqual(items.first?.title, "Output")
+    }
+
+    /// The microphone cells offer the inputs, and an input is ticked the same
+    /// way an output is.
+    @MainActor
+    func testTheInputPickerTicksTheOneInUse() {
+        let items = CellPicker.items(for: .micMute, target: actions(), inputs: [
+            .init(id: 1, name: "MacBook Pro Microphone", isDefault: true),
+            .init(id: 2, name: "Podcast Mic", isDefault: false),
+        ])
+        XCTAssertEqual(items.first?.title, "Input")
+        XCTAssertEqual(items.first { $0.title == "MacBook Pro Microphone" }?.state, .on)
+        XCTAssertEqual(items.first { $0.title == "Podcast Mic" }?.state, .off)
     }
 
     func testTheNetworkYouAreOnIsTickedAndTheOthersAreNot() {
@@ -352,5 +519,50 @@ final class FocusActionTests: XCTestCase {
         XCTAssertFalse(destructive)
         XCTAssertTrue(AppleScript.controlCenter.contains("ControlCenter"))
         XCTAssertTrue(AppleScript.controlCenter.contains("menu bar item 1"))
+    }
+
+    /// The picker asks Control Center for the row by name rather than by
+    /// index. Index was tried and measured as fragile here: the panel's
+    /// window index moved between two queries a second apart.
+    @MainActor
+    func testSettingAModeAsksForTheRowByNameAndNotByIndex() throws {
+        guard InputPermission.isTrusted else {
+            throw XCTSkip("setting a mode needs Accessibility, which this run does not have")
+        }
+        var source = ""
+        FocusModes.script = { source = $0 }
+        defer { FocusModes.script = { try AppleScript.run($0) } }
+
+        try FocusModes.set("Do Not Disturb")
+        XCTAssertTrue(source.contains("whose name contains \"Do Not Disturb\""),
+                      "the mode is not being matched by name")
+        XCTAssertTrue(source.contains("menu bar item \"Focus\""), "it should open the Focus panel, not the whole panel")
+        XCTAssertFalse(source.contains("window 2"), "no fixed window index: that is what broke before")
+    }
+
+    /// A Control Center that has moved reports the failure rather than
+    /// pretending the mode was set. Focus has no read back, so a silent
+    /// failure here would be indistinguishable from success.
+    @MainActor
+    func testAModeThatCannotBeFoundIsReportedRatherThanSwallowed() throws {
+        guard InputPermission.isTrusted else {
+            throw XCTSkip("setting a mode needs Accessibility, which this run does not have")
+        }
+        FocusModes.script = { _ in throw ActionError.failed("System Events got an error") }
+        defer { FocusModes.script = { try AppleScript.run($0) } }
+
+        XCTAssertThrowsError(try FocusModes.set("Work")) { error in
+            guard case .failed(let message)? = error as? ActionError else {
+                return XCTFail("a missing row should be a failed action, not \(error)")
+            }
+            XCTAssertFalse(message.isEmpty)
+        }
+    }
+
+    /// The nine modes macOS ships, in the order Control Center lists them.
+    func testTheStandardModesAreTheOnesMacOSShips() {
+        XCTAssertEqual(FocusModes.standard.first, "Do Not Disturb")
+        XCTAssertEqual(FocusModes.standard.count, 9)
+        XCTAssertTrue(FocusModes.standard.contains("Sleep"))
     }
 }

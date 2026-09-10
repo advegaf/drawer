@@ -19,7 +19,7 @@ a disk image.
 
 ### What a cell can be
 
-- An app, an Apple Shortcut, or one of forty-one actions.
+- An app, an Apple Shortcut, or one of fifty-two actions.
 - Wi-Fi, Bluetooth, dark mode, Night Shift, Stage Manager, mute, volume,
   brightness, keep awake, lock screen, sleep, empty trash, three screenshots,
   Mission Control, show desktop and the screen saver.

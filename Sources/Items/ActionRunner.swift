@@ -30,6 +30,12 @@ final class ActionRunner {
     private let launcher: AppLaunching
     private let shell: DetachedRunning
     private let fold: () -> Void
+    /// Brings the drawer back after a fire action has failed. Without it the
+    /// failure is real, correct and invisible: `runFireWithFold` folds before
+    /// it runs, and the red ring is then drawn into a closed drawer at zero
+    /// opacity. Every permission failure the keyboard lock and force quit
+    /// have ever reported was lost this way.
+    private let reveal: () -> Void
     private let publishCell: (String, CellState, Bool) -> Void
 
     /// Everything except a live level goes through here. `live` only means
@@ -52,11 +58,13 @@ final class ActionRunner {
     init(controlFor: @escaping (ActionID) -> ActionSpec.Control = { ActionRegistry.spec(for: $0).control },
          liveLevels: LiveLevels? = nil,
          launcher: AppLaunching, shell: DetachedRunning,
-         fold: @escaping () -> Void, update: @escaping (String, CellState, Bool) -> Void, openSettings: @escaping () -> Void) {
+         fold: @escaping () -> Void, reveal: @escaping () -> Void = {},
+         update: @escaping (String, CellState, Bool) -> Void, openSettings: @escaping () -> Void) {
         self.controlFor = controlFor
         self.launcher = launcher
         self.shell = shell
         self.fold = fold
+        self.reveal = reveal
         self.publishCell = update
         self.openSettings = openSettings
         let levels = liveLevels ?? LiveLevels(controlFor: { id, _ in controlFor(id) }, targetFor: { _ in 1 })
@@ -238,6 +246,7 @@ final class ActionRunner {
             do {
                 try await run()
             } catch {
+                self.reveal()
                 self.update(id, .failed(self.sentence(for: error)))
                 try? await Task.sleep(for: .seconds(self.failureDisplay))
                 self.update(id, .ready)

@@ -23,8 +23,6 @@ enum AppleScript {
     static let emptyTrash = "tell application \"Finder\" to empty trash"
     // Command Option Escape, the same chord the Apple menu's Force Quit item
     // uses. There is no scriptable command for that window.
-    static let forceQuit =
-        "tell application \"System Events\" to key code 53 using {command down, option down}"
     /// Opens Control Center, which is where the Focus modes live.
     ///
     /// Not a script that sets a named mode: there is no supported way to do

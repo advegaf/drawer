@@ -180,6 +180,24 @@ enum AudioInput {
         return Double(value)
     }
 
+    /// The input level, on the same virtual main volume the mute fallback
+    /// already writes. Nil where the device has no such property, which is
+    /// every aggregate device and a few USB microphones.
+    static func level() -> Double? {
+        guard let device = defaultDeviceID() else { return nil }
+        return readVolume(device: device)
+    }
+
+    static func setLevel(_ value: Double) throws {
+        guard let device = defaultDeviceID() else { throw ActionError.unavailable }
+        var address = inputAddress(kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
+        guard AudioObjectHasProperty(device, &address) else { throw ActionError.unavailable }
+        var level = Float32(max(0, min(1, value)))
+        let status = AudioObjectSetPropertyData(device, &address, 0, nil,
+                                                UInt32(MemoryLayout<Float32>.size), &level)
+        guard status == noErr else { throw ActionError.failed("Could not set the input level.") }
+    }
+
     private static func inputAddress(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeInput,
                                    mElement: kAudioObjectPropertyElementMain)

@@ -11,6 +11,83 @@ import IOBluetooth
 /// is keyboard navigable, it scrolls when it is long, and it goes away the way
 /// every other menu does. The plain click on the cell still toggles.
 
+// MARK: - Audio inputs
+
+/// The microphones sound can come from. The same code as the output list with
+/// the scope and the default device selector changed, which is why it lives
+/// beside it rather than growing a parameter on it.
+enum AudioInputs {
+    static func inputs() -> [AudioDevices.Device] {
+        let current = AudioInput.defaultDeviceID()
+        return AudioDevices.allIDs().compactMap { device in
+            guard AudioDevices.hasStream(device, scope: kAudioObjectPropertyScopeInput),
+                  let name = AudioDevices.name(of: device) else { return nil }
+            return AudioDevices.Device(id: device, name: name, isDefault: device == current)
+        }
+    }
+
+    static func setDefault(_ id: AudioDeviceID) throws {
+        var device = id
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultInputDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        let status = AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil,
+                                                UInt32(MemoryLayout<AudioDeviceID>.size), &device)
+        guard status == noErr else { throw ActionError.failed("That input could not be selected.") }
+    }
+}
+
+// MARK: - Focus
+
+/// The Focus modes, and the one route that can actually set one.
+///
+/// macOS has no supported API for this. The mode list lives in
+/// `~/Library/DoNotDisturb/DB`, which returns EPERM without Full Disk Access
+/// even though the file is mode 0644, and nothing writable sets a named mode.
+/// What is left is Control Center's own rows, driven through Accessibility,
+/// which this repository already measured as fragile: the panel's window
+/// index moved between two queries a second apart.
+///
+/// So the list is the nine modes macOS ships rather than the user's own, and
+/// there are no checkmarks, because nothing here can read which mode is on
+/// and a checkmark that is wrong is worse than none. Every step of the set is
+/// a guard that names what it could not find, so a failure says which part of
+/// Control Center moved rather than doing nothing.
+enum FocusModes {
+    static let standard = ["Do Not Disturb", "Personal", "Work", "Sleep",
+                           "Driving", "Fitness", "Gaming", "Mindfulness", "Reading"]
+
+    /// Opens Control Center's Focus panel and clicks the named row.
+    /// Injectable so a test can drive the failure paths without a real
+    /// Control Center on screen.
+    @MainActor static var script: (String) throws -> Void = { try AppleScript.run($0) }
+
+    @MainActor
+    static func set(_ mode: String) throws {
+        try InputPermission.require()
+        // One script rather than a walk from Swift: System Events resolves
+        // the whole path in one apply, so the panel cannot move between two
+        // of our queries the way it did when this was tried element by
+        // element. `whose` matching is the part that survives a relayout,
+        // since it asks by name instead of by index.
+        let source = """
+        tell application "System Events" to tell process "ControlCenter"
+            click menu bar item "Focus" of menu bar 1
+            delay 0.35
+            set focusRow to first UI element of window 1 whose name contains "\(mode)"
+            click focusRow
+        end tell
+        """
+        do {
+            try script(source)
+        } catch let error as ActionError {
+            throw error
+        } catch {
+            throw ActionError.failed("Control Center did not offer \(mode).")
+        }
+    }
+}
+
 // MARK: - Bluetooth
 
 enum BluetoothDevices {
@@ -119,9 +196,25 @@ enum AudioDevices {
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &ids) == noErr
         else { return [] }
         return ids.compactMap { id in
-            guard hasOutput(id), let name = name(of: id) else { return nil }
+            guard hasStream(id, scope: kAudioObjectPropertyScopeOutput), let name = name(of: id) else { return nil }
             return Device(id: id, name: name, isDefault: id == current)
         }
+    }
+
+    /// Every audio device the system knows, in whatever order it gives them.
+    fileprivate static func allIDs() -> [AudioDeviceID] {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size) == noErr
+        else { return [] }
+        var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &ids) == noErr
+        else { return [] }
+        return ids
     }
 
     static func setDefault(_ id: AudioDeviceID) throws {
@@ -136,10 +229,13 @@ enum AudioDevices {
         guard status == noErr else { throw ActionError.failed("That output would not take the sound.") }
     }
 
-    private static func hasOutput(_ id: AudioDeviceID) -> Bool {
+    /// Whether the device carries channels in that direction. An output only
+    /// device answers false for the input scope and the other way round, which
+    /// is what keeps a microphone out of the output list.
+    fileprivate static func hasStream(_ id: AudioDeviceID, scope: AudioObjectPropertyScope) -> Bool {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyStreamConfiguration,
-            mScope: kAudioObjectPropertyScopeOutput,
+            mScope: scope,
             mElement: kAudioObjectPropertyElementMain
         )
         var size: UInt32 = 0
@@ -151,7 +247,7 @@ enum AudioDevices {
         return list.contains { $0.mNumberChannels > 0 }
     }
 
-    private static func name(of id: AudioDeviceID) -> String? {
+    fileprivate static func name(of id: AudioDeviceID) -> String? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioObjectPropertyName,
             mScope: kAudioObjectPropertyScopeGlobal,

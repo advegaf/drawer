@@ -129,6 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             launcher: WorkspaceLauncher(),
             shell: ShellRunner(),
             fold: { [weak controller] in controller?.foldForAction() },
+            reveal: { [weak controller] in controller?.revealForFailure() },
             update: { [weak controller] id, state, live in controller?.model.updateCell(id: id, state: state, live: live) },
             openSettings: { [weak settings] in settings?.show() }
         )

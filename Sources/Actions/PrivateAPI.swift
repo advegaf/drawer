@@ -98,7 +98,48 @@ final class NightShiftAPI {
     }
 }
 
+/// True Tone, from the same private framework Night Shift uses.
+///
+/// `CBTrueToneClient` lives in the dyld shared cache, so the selectors cannot
+/// be read off disk and are taken from the class's own interface: `-enabled`,
+/// `-setEnabled:`, and `-supported` for the Macs whose display has no ambient
+/// sensor. Anything missing means `init?` returns nil and the action reports
+/// itself unavailable, which is the same guard Bluetooth and brightness use.
+final class TrueToneAPI {
+    private typealias BoolGetter = @convention(c) (AnyObject, Selector) -> Bool
+    private typealias BoolSetter = @convention(c) (AnyObject, Selector, Bool) -> Bool
+
+    private let client: NSObject
+    private let get: BoolGetter
+    private let set: BoolSetter
+
+    init?() {
+        let path = "/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness"
+        guard dlopen(path, RTLD_LAZY) != nil,
+              let cls = NSClassFromString("CBTrueToneClient") as? NSObject.Type,
+              let get: BoolGetter = resolveSymbol("/usr/lib/libobjc.A.dylib", "objc_msgSend"),
+              let set: BoolSetter = resolveSymbol("/usr/lib/libobjc.A.dylib", "objc_msgSend")
+        else { return nil }
+        let instance = cls.init()
+        guard instance.responds(to: NSSelectorFromString("enabled")),
+              instance.responds(to: NSSelectorFromString("setEnabled:")) else { return nil }
+        // A Mac whose display has no ambient sensor answers false here, and
+        // the action is better hidden than shown doing nothing.
+        if instance.responds(to: NSSelectorFromString("supported")),
+           !get(instance, NSSelectorFromString("supported")) { return nil }
+        client = instance
+        self.get = get
+        self.set = set
+    }
+
+    func isEnabled() -> Bool { get(client, NSSelectorFromString("enabled")) }
+
+    @discardableResult
+    func setEnabled(_ on: Bool) -> Bool { set(client, NSSelectorFromString("setEnabled:"), on) }
+}
+
 enum PrivateAPI {
+    static let trueTone: TrueToneAPI? = TrueToneAPI()
     static let bluetooth: BluetoothAPI? = BluetoothAPI.resolve()
     static let brightness: BrightnessAPI? = BrightnessAPI.resolve()
     static let lockScreen: LockScreenAPI? = LockScreenAPI.resolve()

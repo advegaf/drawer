@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class ScreenshotCapture {
@@ -94,28 +95,96 @@ final class ScreenRecording {
         return desktop.appendingPathComponent("Screen Recording \(formatter.string(from: date)).mov")
     }
 
+    /// Remembered the same way the Accessibility ask is: macOS honours the
+    /// Screen Recording prompt once per signed copy, and asking again after
+    /// that shows a dialog that cannot grant anything.
+    static let askedKey = "hasAskedScreenRecording"
+    static var defaults: UserDefaults = .standard
+    static var preflight: () -> Bool = { CGPreflightScreenCaptureAccess() }
+    static var request: () -> Bool = { CGRequestScreenCaptureAccess() }
+    static var openSettings: () -> Void = {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    static let missing = "Drawer needs Screen Recording. If it is already listed in Privacy and Security, switch it off and on again."
+
+    /// The permission `screencapture -v` needs, which is charged to Drawer
+    /// rather than to the tool: a spawned binary inherits the responsible
+    /// process, so the prompt and the grant are ours.
+    private func requirePermission() throws {
+        guard !Self.preflight() else { return }
+        let asked = Self.defaults.bool(forKey: Self.askedKey)
+        if !asked {
+            Self.defaults.set(true, forKey: Self.askedKey)
+            // In front, so the prompt is not behind the drawer, the same
+            // reason dark mode and Empty Trash activate before their scripts.
+            NSApp.activate(ignoringOtherApps: true)
+            _ = Self.request()
+        } else {
+            Self.openSettings()
+        }
+        throw ActionError.failed(Self.missing)
+    }
+
     @discardableResult
     func toggle(destination: URL? = nil) throws -> Bool {
         if isRunning {
-            stop()
+            try stopAndVerify()
             return false
         }
+        try requirePermission()
         let url = destination ?? Self.destination()
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        // -v records video, -k keeps the pointer out of it.
+        // -v records video. No deadline: the recording runs until the second
+        // click sends it an interrupt.
         task.arguments = ["-v", url.path]
         do { try task.run() } catch {
             throw ActionError.failed("The recording could not be started.")
         }
         process = task
         output = url
+        // A denial arrives after the exec succeeds, so the launch alone
+        // proves nothing. If the tool is gone a beat later, the cell said On
+        // while nothing was recording, which is what this catches.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self, weak task] in
+            MainActor.assumeIsolated {
+                guard let self, let task, self.process === task, !task.isRunning else { return }
+                self.process = nil
+                self.output = nil
+                // The cell is reading On at this point. Publishing false is
+                // what turns the ring back off without waiting for a click.
+                self.changes.send(false)
+            }
+        }
         return true
     }
+
+    /// Says when a recording ends without being asked to, which on this path
+    /// means macOS refused it. The cell's toggle subscribes to this.
+    let changes = PassthroughSubject<Bool, Never>()
 
     func stop() {
         guard let process, process.isRunning else { self.process = nil; return }
         process.interrupt()
         self.process = nil
+    }
+
+    /// Stops, then checks the file is really there. An interrupted recorder
+    /// writes its index on the way out, so a missing file means the recording
+    /// never started.
+    func stopAndVerify() throws {
+        let url = output
+        stop()
+        guard let url else { return }
+        // The recorder needs a moment to close the file it was writing.
+        let deadline = Date().addingTimeInterval(1.5)
+        while !FileManager.default.fileExists(atPath: url.path), Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw ActionError.failed("Nothing was recorded. Check Screen Recording in Privacy and Security.")
+        }
     }
 }

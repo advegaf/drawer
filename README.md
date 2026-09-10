@@ -48,7 +48,7 @@ Requires macOS 26.
 
 ## What can go in it
 
-Forty one actions, every app you have installed, and every Apple Shortcut.
+Fifty two actions, every app you have installed, and every Apple Shortcut.
 
 Wi-Fi, Bluetooth, dark mode, Night Shift, Stage Manager, volume and brightness as
 levels you drag, mute, mute the microphone, keep awake, lock screen, sleep, sleep
@@ -59,14 +59,21 @@ files, Dock and menu bar auto-hide, battery percentage, relaunch the Finder or
 the Dock, play and pause, next and previous track, paste without formatting, lock
 the keyboard so it can be wiped, and Focus.
 
-A secondary click on Wi-Fi, Bluetooth or Volume opens a picker rather than a
-toggle: the networks this Mac knows, the paired devices with the connected ones
-first, or the outputs sound can go to. Reconnecting headphones is then two clicks
-at the edge of the screen rather than a trip through System Settings.
+The settings people actually change: Dock magnification, recent apps in the Dock,
+minimise into the app icon, click the wallpaper to move every window aside, the
+Finder's path bar and status bar, show every file extension, the screenshot
+thumbnail, seconds on the menu bar clock, True Tone, and the microphone's input
+level.
 
-The four that cannot be taken back (eject, restart, shut down, log out) do
-nothing on the first click. The cell arms, and a second click within a few
-seconds does it.
+A secondary click opens a picker rather than a toggle: on Wi-Fi the networks this
+Mac knows, on Bluetooth the paired devices with the connected ones first, on
+Volume the outputs sound can go to, on the microphone the inputs it can come
+from, and on Focus the modes macOS ships. Reconnecting headphones is then two
+clicks at the edge of the screen rather than a trip through System Settings.
+
+The five that cannot be taken back (eject, restart, shut down, log out, force
+quit) do nothing on the first click. The cell arms, and a second click within a
+few seconds does it.
 
 <p align="center">
   <img src="docs/images/settings-items.png" width="960" alt="The Items page in Drawer's settings, with a live preview of the drawer above a searchable library of actions">
@@ -94,18 +101,28 @@ you ask for it from the menu bar item.
 
 ## Permissions
 
-macOS asks the first time an action needs one. Nothing leaves the machine: there
-is no account, no analytics and no network call in the app.
+macOS asks the first time an action needs one, once, and Drawer never asks again:
+after that it opens the right pane in System Settings and gets out of the way.
+Nothing leaves the machine: there is no account, no analytics and no network call
+in the app.
+
+macOS grants these to a signed copy of an app rather than to its name, so a
+Drawer you built yourself and a Drawer from the release are two different apps as
+far as the permission is concerned. If Drawer is already listed and still says it
+has no permission, switch that row off and on again.
 
 | What you use | What it asks for | Why |
 | --- | --- | --- |
 | Dark mode, Empty Trash, Restart, Shut Down, Log Out, Force Quit | Automation | They are System Events and Finder commands |
-| Clean Keyboard, Paste as Text, the transport keys | Accessibility | Posting and swallowing keystrokes needs it |
+| Clean Keyboard, Paste as Text, the transport keys, Focus modes | Accessibility | Posting and swallowing keystrokes needs it |
+| Screen Recording | Screen Recording | Recording the screen is charged to Drawer, not to the tool it runs |
 | Bluetooth | Bluetooth | Reading and setting the radio's power |
 
-Focus is the one thing macOS gives no supported way to set. That cell opens
-Control Center's own Focus list. To go straight to a single mode, make a shortcut
-with the Set Focus action and pin the shortcut.
+Focus is the one thing macOS gives no supported way to set. A plain click opens
+Control Center's own list, and a secondary click offers the nine modes macOS
+ships and sets one by driving Control Center's rows. That route is Apple's user
+interface rather than an API, so it can move in any macOS update, and the cell
+says so when it does rather than failing quietly.
 
 ## Build it yourself
 

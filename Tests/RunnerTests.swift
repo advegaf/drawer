@@ -85,6 +85,39 @@ final class RunnerTests: XCTestCase {
         )
     }
 
+    // MARK: - A failure the user can actually see
+
+    /// A fire action folds the drawer before it runs, which is right for a
+    /// screenshot and wrong for an error: the red ring then lands on a cell
+    /// drawn at zero opacity. Every permission failure the keyboard lock and
+    /// force quit ever reported was lost this way.
+    func testAFailedFireBringsTheDrawerBackBeforeItReportsTheFailure() async {
+        let recorder = Recorder()
+        let runner = ActionRunner(
+            controlFor: { _ in .fire(run: { throw ActionError.failed("nope") }, destructive: false) },
+            launcher: FakeLauncher(),
+            shell: FakeShell(),
+            fold: { recorder.note("fold") },
+            reveal: { recorder.note("reveal") },
+            update: { id, state, _ in recorder.recordUpdate(id, state) },
+            openSettings: { recorder.note("openSettings") }
+        )
+        runner.foldGrace = 0
+        runner.failureDisplay = 0.05
+
+        let cell = DrawerCell(id: DrawerItem.action("lockScreen").id, title: "Lock Screen",
+                              icon: .symbol("lock.fill"), kind: .fire(destructive: false), state: .ready)
+        runner.activate(cell)
+        await waitUntil { recorder.events.contains("reveal") }
+
+        let fold = recorder.events.firstIndex(of: "fold")
+        let reveal = recorder.events.firstIndex(of: "reveal")
+        let failure = recorder.events.firstIndex(of: "update:\(cell.id)")
+        XCTAssertNotNil(reveal, "a failed fire never asked for the drawer back")
+        XCTAssertLessThan(fold ?? .max, reveal ?? -1, "the reveal should follow the fold")
+        XCTAssertLessThan(reveal ?? .max, failure ?? -1, "the drawer has to be back before the failure is written")
+    }
+
     // MARK: - Toggles that change without us
 
     /// Dark mode and mute can both be changed anywhere else on the Mac, and

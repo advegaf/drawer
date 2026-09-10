@@ -13,7 +13,10 @@ enum ActionID: String, Codable, CaseIterable {
          desktopIcons, hiddenFiles, dockAutohide, menuBarAutohide, batteryPercentage,
          relaunchFinder, relaunchDock,
          playPause, nextTrack, previousTrack, micMute, keyboardCleaning, plainPaste, screenRecording,
-         focus
+         focus,
+         dockMagnification, dockRecents, minimizeIntoIcon, clickWallpaper,
+         finderPathBar, finderStatusBar, fileExtensions, screenshotThumbnail, clockSeconds,
+         trueTone, micLevel
 }
 
 enum ActionError: Error, Equatable {
@@ -99,7 +102,7 @@ enum ActionRegistry {
         Row(id: .hideOthers, title: "Hide Others", symbol: "rectangle.stack",
             detail: "Hide every app but the one in front", kind: .fire(destructive: false)),
         Row(id: .forceQuit, title: "Force Quit", symbol: "exclamationmark.octagon",
-            detail: "Open the Force Quit window", kind: .fire(destructive: false)),
+            detail: "Force quit the app in front after a second click", kind: .fire(destructive: true)),
         Row(id: .sleepDisplays, title: "Sleep Displays", symbol: "display.trianglebadge.exclamationmark",
             detail: "Turn the screen off without sleeping", kind: .fire(destructive: false)),
 
@@ -145,6 +148,28 @@ enum ActionRegistry {
             detail: "Paste the clipboard with its formatting taken off", kind: .fire(destructive: false)),
         Row(id: .screenRecording, title: "Screen Recording", symbol: "record.circle",
             detail: "Start a recording, and stop it with a second click", kind: .toggle),
+        Row(id: .dockMagnification, title: "Dock Magnification", symbol: "arrow.up.left.and.arrow.down.right",
+            detail: "Grow a Dock icon as the pointer passes it", kind: .toggle),
+        Row(id: .dockRecents, title: "Dock Recents", symbol: "clock.arrow.circlepath",
+            detail: "The recent apps section at the end of the Dock", kind: .toggle),
+        Row(id: .minimizeIntoIcon, title: "Minimise Into Icon", symbol: "arrow.down.right.and.arrow.up.left",
+            detail: "Minimised windows go into the app's own Dock icon", kind: .toggle),
+        Row(id: .clickWallpaper, title: "Click Wallpaper", symbol: "rectangle.on.rectangle.slash",
+            detail: "Clicking the wallpaper moves every window aside", kind: .toggle),
+        Row(id: .finderPathBar, title: "Path Bar", symbol: "point.topleft.down.curvedto.point.bottomright.up",
+            detail: "The folder path along the bottom of a Finder window", kind: .toggle),
+        Row(id: .finderStatusBar, title: "Status Bar", symbol: "text.line.first.and.arrowtriangle.forward",
+            detail: "The item count along the bottom of a Finder window", kind: .toggle),
+        Row(id: .fileExtensions, title: "File Extensions", symbol: "textformat.abc.dottedunderline",
+            detail: "Show every file extension in the Finder", kind: .toggle),
+        Row(id: .screenshotThumbnail, title: "Shot Thumbnail", symbol: "photo.badge.checkmark",
+            detail: "The preview that floats after a screenshot", kind: .toggle),
+        Row(id: .clockSeconds, title: "Clock Seconds", symbol: "clock",
+            detail: "Seconds on the menu bar clock", kind: .toggle),
+        Row(id: .trueTone, title: "True Tone", symbol: "sun.max.trianglebadge.exclamationmark",
+            detail: "Match the display's white to the room", kind: .toggle),
+        Row(id: .micLevel, title: "Mic Level", symbol: "mic.and.signal.meter",
+            detail: "Input volume for the microphone in use", kind: .level),
         Row(id: .focus, title: "Focus", symbol: "moon.circle",
             detail: "Open Control Center's Focus modes", kind: .fire(destructive: false)),
     ]
@@ -181,6 +206,7 @@ enum ActionRegistry {
         case .bluetooth: return PrivateAPI.bluetooth != nil
         case .brightness: return PrivateAPI.brightness != nil
         case .lockScreen: return PrivateAPI.lockScreen != nil
+    case .trueTone: return PrivateAPI.trueTone != nil
         case .showDesktop: return DesktopActions.canShowDesktop
         case .missionControl: return FileManager.default.fileExists(atPath: DesktopActions.missionControlURL.path)
         default: return true
@@ -195,6 +221,15 @@ enum ActionRegistry {
         case .hiddenFiles: return .hiddenFiles
         case .dockAutohide: return .dockAutohide
         case .menuBarAutohide: return .menuBarAutohide
+        case .dockMagnification: return .dockMagnification
+        case .dockRecents: return .dockRecents
+        case .minimizeIntoIcon: return .minimizeIntoIcon
+        case .clickWallpaper: return .clickWallpaper
+        case .finderPathBar: return .finderPathBar
+        case .finderStatusBar: return .finderStatusBar
+        case .fileExtensions: return .fileExtensions
+        case .screenshotThumbnail: return .screenshotThumbnail
+        case .clockSeconds: return .clockSeconds
         default: return .batteryPercentage
         }
     }
@@ -289,8 +324,8 @@ enum ActionRegistry {
             }, destructive: false)
         case .forceQuit:
             return .fire(run: {
-                try await MainActor.run { try AppleScript.run(AppleScript.forceQuit) }
-            }, destructive: false)
+                try await MainActor.run { try SystemActions.forceQuit(SystemActions.appInFront()) }
+            }, destructive: true)
         case .sleepDisplays:
             return .fire(run: { _ = try await Shell.run("/usr/bin/pmset", ["displaysleepnow"]) }, destructive: false)
         case .ejectDisks:
@@ -309,7 +344,9 @@ enum ActionRegistry {
             return .fire(run: {
                 try await MainActor.run { try AppleScript.run(AppleScript.logOut) }
             }, destructive: true)
-        case .desktopIcons, .hiddenFiles, .dockAutohide, .menuBarAutohide, .batteryPercentage:
+        case .desktopIcons, .hiddenFiles, .dockAutohide, .menuBarAutohide, .batteryPercentage,
+             .dockMagnification, .dockRecents, .minimizeIntoIcon, .clickWallpaper,
+             .finderPathBar, .finderStatusBar, .fileExtensions, .screenshotThumbnail, .clockSeconds:
             let domain = Self.domain(for: id)
             return .toggle(
                 read: { SystemSwitch.isOn(domain) },
@@ -327,6 +364,22 @@ enum ActionRegistry {
             return .toggle(
                 read: { AudioInput.isMuted() },
                 write: { on in try AudioInput.setMuted(on) },
+                observe: nil
+            )
+        case .micLevel:
+            return .level(
+                read: { AudioInput.level() },
+                write: { value in try AudioInput.setLevel(value) },
+                observe: nil
+            )
+        case .trueTone:
+            guard let trueTone = PrivateAPI.trueTone else { return .unavailable }
+            return .toggle(
+                read: { await PrivateCall.run(.trueTone) { trueTone.isEnabled() } },
+                write: { on in
+                    let applied = await PrivateCall.run(.trueTone) { trueTone.setEnabled(on) } ?? false
+                    guard applied else { throw ActionError.notApplied }
+                },
                 observe: nil
             )
         case .keyboardCleaning:
@@ -348,7 +401,9 @@ enum ActionRegistry {
                         guard running == on else { throw ActionError.notApplied }
                     }
                 },
-                observe: nil
+                // A refused recording ends on its own a beat after it
+                // starts, and this is what turns the ring back off.
+                observe: ScreenRecording.shared.changes.eraseToAnyPublisher()
             )
         case .stageManager:
             // Whether this row survives past phase 7 is a call phase 9's

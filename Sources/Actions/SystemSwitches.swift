@@ -34,6 +34,29 @@ enum SystemSwitch {
                                             defaultsToOn: false, restarts: nil)
         static let batteryPercentage = Domain(identifier: "com.apple.controlcenter", key: "BatteryShowPercentage",
                                               defaultsToOn: false, restarts: "ControlCenter")
+        static let dockMagnification = Domain(identifier: "com.apple.dock", key: "magnification",
+                                              defaultsToOn: false, restarts: "Dock")
+        static let dockRecents = Domain(identifier: "com.apple.dock", key: "show-recents",
+                                        defaultsToOn: true, restarts: "Dock")
+        static let minimizeIntoIcon = Domain(identifier: "com.apple.dock", key: "minimize-to-application",
+                                             defaultsToOn: false, restarts: "Dock")
+        /// WindowManager watches its own domain, the way Stage Manager does,
+        /// so nothing needs restarting.
+        static let clickWallpaper = Domain(identifier: "com.apple.WindowManager",
+                                           key: "EnableStandardClickToShowDesktop",
+                                           defaultsToOn: true, restarts: nil)
+        static let finderPathBar = Domain(identifier: "com.apple.finder", key: "ShowPathbar",
+                                          defaultsToOn: false, restarts: "Finder")
+        static let finderStatusBar = Domain(identifier: "com.apple.finder", key: "ShowStatusBar",
+                                            defaultsToOn: false, restarts: "Finder")
+        static let fileExtensions = Domain(identifier: "Apple Global Domain", key: "AppleShowAllExtensions",
+                                           defaultsToOn: false, restarts: "Finder")
+        /// `screencapture` reads its preferences on every run, so there is
+        /// nothing to restart here either.
+        static let screenshotThumbnail = Domain(identifier: "com.apple.screencapture", key: "show-thumbnail",
+                                                defaultsToOn: true, restarts: nil)
+        static let clockSeconds = Domain(identifier: "com.apple.menuextra.clock", key: "ShowSeconds",
+                                         defaultsToOn: false, restarts: "ControlCenter")
     }
 
     static func isOn(_ domain: Domain) -> Bool? {
@@ -105,6 +128,19 @@ enum SystemActions {
     static func quit(_ app: NSRunningApplication?) throws {
         guard let app, !app.isTerminated else { throw ActionError.unavailable }
         guard app.terminate() else { throw ActionError.failed("\(app.localizedName ?? "That app") would not quit.") }
+    }
+
+    /// The same target as `quit`, killed rather than asked.
+    ///
+    /// `terminate()` sends a quit Apple Event, which an app that is hung
+    /// never answers, and hung is the whole reason anyone reaches for this.
+    /// `forceTerminate()` is SIGKILL, so unsaved work is gone, which is why
+    /// the cell arms first and fires on the second click.
+    @MainActor
+    static func forceQuit(_ app: NSRunningApplication?) throws {
+        guard let app, !app.isTerminated else { throw ActionError.unavailable }
+        let name = app.localizedName ?? "That app"
+        guard app.forceTerminate() else { throw ActionError.failed("\(name) would not force quit.") }
     }
 
     @MainActor
