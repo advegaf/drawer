@@ -35,31 +35,18 @@ func bitmap(_ width: Int, _ height: Int) -> NSBitmapImageRep {
     return rep
 }
 
-/// Slate and indigo. Base `#C6CEE2`, an indigo peak low on the left, a
-/// graphite peak high on the right, and a pale lift where the eye lands
-/// first. Deeper and cooler than a white page, so a black product has
-/// something to sit against, and light enough that a white window still has
-/// an edge.
+/// Paper. One flat colour behind everything, because a picture with a wash
+/// behind the window and a second wash inside the screen has two gradients
+/// competing in it and neither wins. The settings windows are dark, so they
+/// cut out against this without needing a border drawn around them.
 func ground(_ width: Int, _ height: Int) -> NSBitmapImageRep {
     let result = bitmap(width, height)
     guard let data = result.bitmapData else { fatalError("no bitmap data") }
+    let paper: [UInt8] = [242, 242, 244, 255]
     for y in 0..<height {
         for x in 0..<width {
-            let u = Double(x) / Double(width)
-            let v = Double(y) / Double(height)
-            let indigo = exp(-pow((u - 0.08) / 0.72, 2) - pow((v - 0.92) / 0.62, 2))
-            let graphite = exp(-pow((u - 1.02) / 0.62, 2) - pow((v - 0.30) / 0.85, 2))
-            let light = exp(-pow((u - 0.34) / 0.48, 2) - pow((v - 0.14) / 0.46, 2))
-            let channels = [
-                198.0 - 55 * indigo - 44 * graphite + 32 * light,
-                206.0 - 42 * indigo - 46 * graphite + 28 * light,
-                226.0 - 20 * indigo - 50 * graphite + 20 * light,
-            ]
             let offset = y * result.bytesPerRow + x * 4
-            for channel in 0..<3 {
-                data[offset + channel] = UInt8(max(0, min(255, channels[channel].rounded())))
-            }
-            data[offset + 3] = 255
+            for channel in 0..<4 { data[offset + channel] = paper[channel] }
         }
     }
     return result
@@ -165,29 +152,14 @@ func screen(_ outer: CGRect, canvas: CGSize, radius: CGFloat = 46) -> CGRect {
     NSBezierPath(roundedRect: flip(outer), xRadius: radius, yRadius: radius).fill()
     NSGraphicsContext.restoreGraphicsState()
 
-    // A wallpaper with some colour in it rather than a pale slab. Two reasons,
-    // both measured on a first attempt: a near white screen makes the picture
-    // read as a blank page with a bar stuck to it, and a near black one makes
-    // the drawer disappear, since the product and the screen behind it are
-    // then the same colour.
+    // One flat colour on the screen. Not white and not black, both measured:
+    // a near white screen makes the picture read as a blank page with a bar
+    // stuck to it, and a near black one makes the drawer disappear, since the
+    // product and the screen behind it are then the same colour.
     NSGraphicsContext.saveGraphicsState()
     NSBezierPath(roundedRect: flip(inner), xRadius: radius - 16, yRadius: radius - 16).setClip()
-    let wallpaper = NSGradient(colors: [
-        NSColor(srgbRed: 0.42, green: 0.46, blue: 0.78, alpha: 1),
-        NSColor(srgbRed: 0.20, green: 0.23, blue: 0.46, alpha: 1),
-    ])
-    wallpaper?.draw(in: flip(inner), angle: -55)
-    let bloom = NSGradient(colors: [
-        NSColor(srgbRed: 0.72, green: 0.76, blue: 0.98, alpha: 0.55),
-        NSColor(srgbRed: 0.72, green: 0.76, blue: 0.98, alpha: 0.0),
-    ])
-    // Drawn over a square large enough to cover the whole screen: a smaller
-    // one ends inside the frame and leaves a visible seam where the gradient
-    // stops, which the first attempt had running down the wallpaper.
-    let bloomSize = max(inner.width, inner.height) * 2.4
-    bloom?.draw(in: flip(CGRect(x: inner.midX - bloomSize / 2, y: inner.midY - bloomSize / 2,
-                                width: bloomSize, height: bloomSize)),
-                relativeCenterPosition: NSPoint(x: -0.45, y: 0.5))
+    NSColor(srgbRed: 0.294, green: 0.329, blue: 0.651, alpha: 1).setFill()
+    flip(inner).fill()
     NSGraphicsContext.restoreGraphicsState()
 
     // The hairline where the glass meets the bezel, which is the only thing

@@ -27,7 +27,10 @@ settings_shot() {           # settings_shot <name> <env...>
     pkill -x Drawer || true
     sleep 1
     env "$@" "$BIN" >/dev/null 2>&1 &
-    sleep 6
+    # Eight rather than six: at six the third or fourth launch in a run
+    # sometimes had no titled window yet, and the capture came back either
+    # empty or the wrong size.
+    sleep 8
     swift Scripts/window-shot.swift Drawer "$RAW/$name.png" --shadow >/dev/null
 }
 
@@ -36,7 +39,10 @@ panel_shot() {              # panel_shot <name> <env...>
     pkill -x Drawer || true
     sleep 1
     env "$@" "$BIN" >/dev/null 2>&1 &
-    sleep 6
+    # Eight rather than six: at six the third or fourth launch in a run
+    # sometimes had no titled window yet, and the capture came back either
+    # empty or the wrong size.
+    sleep 8
     local id
     id="$(swift Scripts/window-id.swift Drawer)"
     screencapture -x -l "$id" "$RAW/$name.png"

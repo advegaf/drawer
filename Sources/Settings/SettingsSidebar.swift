@@ -65,9 +65,13 @@ struct SettingsSidebar: View {
     private var footer: some View {
         VStack(spacing: SettingsStyle.s4) {
             Text("v" + ((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0.0"))
-            // Both names, read from the same constant the About card uses, so
-            // the sidebar and the card cannot end up crediting different people.
-            Text("\u{00A9} 2026 " + AboutView.developers)
+            // Credit on its own line, then the legal line. Both names inside a
+            // copyright notice read as small print rather than as a credit,
+            // and the names are read from the same constant the About card
+            // uses so the two cannot end up naming different people.
+            Text("Built by " + AboutView.developers)
+                .multilineTextAlignment(.center)
+            Text("\u{00A9} 2026 Angel Vega")
                 .multilineTextAlignment(.center)
         }
         .settingsFont(SettingsStyle.micro)
