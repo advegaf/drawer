@@ -166,8 +166,8 @@ struct DrawerEditorPreview: View {
     /// Quiet on purpose, since the subject is the black bar on its edge.
     private var wallpaper: LinearGradient {
         LinearGradient(colors: background == .light
-            ? [Color(hex: 0xF3F5FB), Color(hex: 0xE1E7F4)]
-            : [Color(hex: 0x1C1E27), Color(hex: 0x101218)],
+            ? [Color(hex: 0xEDF1FB), Color(hex: 0xD3DCEF)]
+            : [Color(hex: 0x20232E), Color(hex: 0x0D0F15)],
             startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
