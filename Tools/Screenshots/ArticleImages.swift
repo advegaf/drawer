@@ -152,13 +152,13 @@ func screen(_ outer: CGRect, canvas: CGSize, radius: CGFloat = 46) -> CGRect {
     NSBezierPath(roundedRect: flip(outer), xRadius: radius, yRadius: radius).fill()
     NSGraphicsContext.restoreGraphicsState()
 
-    // One flat colour on the screen. Not white and not black, both measured:
-    // a near white screen makes the picture read as a blank page with a bar
-    // stuck to it, and a near black one makes the drawer disappear, since the
-    // product and the screen behind it are then the same colour.
+    // One flat neutral on the screen. No colour of its own: the only colour in
+    // these pictures should be the app's own accent, and a coloured wallpaper
+    // was the loudest thing in the frame. Not white either, so the screen
+    // still reads as a screen against the paper ground outside the bezel.
     NSGraphicsContext.saveGraphicsState()
     NSBezierPath(roundedRect: flip(inner), xRadius: radius - 16, yRadius: radius - 16).setClip()
-    NSColor(srgbRed: 0.294, green: 0.329, blue: 0.651, alpha: 1).setFill()
+    NSColor(srgbRed: 0.914, green: 0.922, blue: 0.941, alpha: 1).setFill()
     flip(inner).fill()
     NSGraphicsContext.restoreGraphicsState()
 
@@ -244,10 +244,9 @@ do {
             icon.draw(in: CGRect(x: inner.minX + 150, y: canvas.height - inner.minY - 232, width: 112, height: 112))
         }
         draw("Drawer", at: CGPoint(x: inner.minX + 296, y: inner.minY + 122), canvasHeight: canvas.height,
-             size: 66, weight: .semibold, color: .white)
+             size: 66, weight: .semibold, color: ink)
         draw("Quick actions at the edge of the screen.", at: CGPoint(x: inner.minX + 300, y: inner.minY + 214),
-             canvasHeight: canvas.height, size: 29, weight: .regular,
-             color: NSColor.white.withAlphaComponent(0.76))
+             canvasHeight: canvas.height, size: 29, weight: .regular, color: inkSoft)
     }
     write(image, to: outDirectory.appendingPathComponent("hero.png"))
 }
