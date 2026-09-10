@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.1
+
+Three actions did nothing, and two of them were the same bug: a fire action
+folds the drawer before it runs, and a folded drawer is drawn at zero opacity,
+so Clean Keyboard and Force Quit were reporting their failures into a cell
+nobody could see. A failed action brings the drawer back now.
+
+- Force Quit force quits the app you were in. It used to open Apple's Force
+  Quit window and quit nothing. It arms first, like Empty Trash.
+- Screen Recording asks for the permission it needs, and says so when it is
+  refused, instead of showing a cell that reads On with nothing recording.
+- The Accessibility prompt is shown once and never again. After that Drawer
+  opens the right pane in System Settings. If Drawer is already listed there
+  and still says it has no permission, switch that row off and on again: macOS
+  grants this to a signed copy rather than to a name.
+- A secondary click on Focus picks one of the nine modes macOS ships, and on
+  the microphone picks the input, the way Wi-Fi, Bluetooth and Volume already
+  did.
+- Eleven more actions: Dock magnification, Dock recents, minimise into icon,
+  click wallpaper to clear the screen, the Finder's path bar and status bar,
+  all file extensions, the screenshot thumbnail, seconds on the clock, True
+  Tone, and the microphone's input level.
+
 ## 1.0.0
 
 The first release, and the first build that leaves the machine it was written

@@ -332,8 +332,9 @@ final class InputActionsTests: XCTestCase {
     func testTheyAskForAccessibilityRatherThanFailingSilently() throws {
         try XCTSkipIf(InputPermission.isTrusted, "this host already has the permission")
         XCTAssertThrowsError(try MediaKeys.press(.playPause, post: { _ in })) {
-            XCTAssertEqual($0 as? ActionError,
-                           .failed("Allow Drawer in System Settings > Privacy & Security > Accessibility"))
+            // Read from the constant rather than repeated here, so the two
+            // cannot drift the way they did when the sentence was rewritten.
+            XCTAssertEqual($0 as? ActionError, .failed(InputPermission.missing))
         }
     }
 
