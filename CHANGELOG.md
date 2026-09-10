@@ -44,10 +44,7 @@ a disk image.
 
 ### Who wrote it
 
-- Angel Vega: the drawer, the panel and its motion, the items model, the
-  release tooling.
-- Daniel JW: the actions and the system integrations behind them, and the
-  settings window with its live preview and library.
+- Built by Angel Vega and Daniel JW.
 - The notch design the drawer's shape came from is Vinz's.
 
 ### The first run

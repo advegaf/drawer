@@ -251,6 +251,37 @@ do {
     write(image, to: outDirectory.appendingPathComponent("hero.png"))
 }
 
+// The download button the README puts under the hero. Drawn here rather than
+// fetched from a badge service: nothing on that page should depend on a third
+// party staying up, and this way it carries the same ink and the same 144 DPI
+// tag as everything else.
+do {
+    let scale = 2.0
+    let label = "Download for macOS"
+    let font = NSFont.systemFont(ofSize: 15 * scale, weight: .semibold)
+    let glyph = NSFont.systemFont(ofSize: 17 * scale, weight: .regular)
+    let text = label as NSString
+    let measured = text.size(withAttributes: [.font: font])
+    let height = 46.0 * scale
+    let width = (measured.width + 34 * scale + 30 * scale * 2).rounded()
+    let image = bitmap(Int(width), Int(height))
+    withCanvas(image) {
+        let full = CGRect(x: 0, y: 0, width: width, height: height)
+        NSColor(srgbRed: 0.106, green: 0.114, blue: 0.133, alpha: 1).setFill()
+        NSBezierPath(roundedRect: full, xRadius: height / 2, yRadius: height / 2).fill()
+        // The Apple glyph from the system font, which every Mac has, rather
+        // than an SF Symbol that has to be resolved at the right weight.
+        let apple = "\u{F8FF}" as NSString
+        let appleSize = apple.size(withAttributes: [.font: glyph])
+        apple.draw(at: NSPoint(x: 30 * scale, y: (height - appleSize.height) / 2 + 1 * scale),
+                   withAttributes: [.font: glyph, .foregroundColor: NSColor.white])
+        text.draw(at: NSPoint(x: 30 * scale + appleSize.width + 12 * scale,
+                              y: (height - measured.height) / 2),
+                  withAttributes: [.font: font, .foregroundColor: NSColor.white])
+    }
+    write(image, to: outDirectory.appendingPathComponent("download.png"))
+}
+
 // The windows, at their own size on the ground. No bezel: these are windows,
 // not a screen edge, and a frame around a frame reads as a mistake.
 for (name, canvasSize) in [("settings-items", CGSize(width: 2400, height: 2500)),

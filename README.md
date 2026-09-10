@@ -12,6 +12,14 @@
   <img src="docs/images/hero.png" width="960" alt="The Drawer settings window open on a Mac desktop with the drawer unfolded against the right edge of the screen">
 </p>
 
+<p align="center">
+  <a href="https://github.com/advegaf/drawer/releases/latest"><img src="docs/images/download.png" width="210" alt="Download Drawer for macOS"></a>
+</p>
+
+<p align="center">
+  <sub>Signed, notarized, and free. Requires macOS 26.</sub>
+</p>
+
 A Mac gives you two places to put the things you use all day. The menu bar, which
 is a row of icons you squint at, and the Dock, which is for apps. Neither one is
 where your pointer already is.
@@ -32,10 +40,9 @@ level it is at.
 
 ## Install
 
-Download the disk image from the
-[latest release](https://github.com/advegaf/drawer/releases/latest), open it, and
-drag Drawer into Applications. It is signed with a Developer ID and notarized by
-Apple, so it opens on a normal double click.
+Open the disk image and drag Drawer into Applications. It is signed with a
+Developer ID and notarized by Apple, so it opens on a normal double click, and
+there is no Gatekeeper detour to explain to anyone.
 
 Requires macOS 26.
 
@@ -116,10 +123,7 @@ pass before anything reaches `dist/`.
 ## Credit
 
 Built by [Angel Vega](https://github.com/advegaf) and
-[Daniel JW](https://github.com/Daniel-jw). Angel wrote the drawer itself, the
-panel and its motion, the items model and the release tooling. Daniel wrote the
-actions and the system integrations behind them, and the settings window with its
-live preview and library.
+[Daniel JW](https://github.com/Daniel-jw).
 
 Drawer grew out of an MIT project by [Vinz](https://github.com/vinzdg), whose
 notch design is what the drawer's shape is still based on.
