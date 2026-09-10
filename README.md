@@ -5,7 +5,15 @@ of round cells: an app to launch, a system toggle, a level to drag, an Apple
 Shortcut to run. Point away and it folds back into a thin black pill against
 the bezel.
 
-![Drawer open on the right edge of a desktop](docs/images/hero.png)
+![Drawer open on the right edge of a desktop](docs/images/article-hero.png)
+
+<p align="center">
+  <img src="docs/images/article-drawer-light.png" width="900" alt="Drawer expanded in light appearance with labeled action cells">
+</p>
+
+<p align="center">
+  <img src="docs/images/article-settings-items.png" width="720" alt="Drawer Items settings page and action library">
+</p>
 
 ## Install
 
