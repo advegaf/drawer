@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2
+
+- **Screen Recording stops when you tell it to.** A click asks for a state now
+  rather than flipping whatever the cell last showed, so a ring that had
+  drifted out of step with the recording corrects itself instead of starting a
+  second one. While it records, the card counts up.
+- **Focus is gone.** Setting a Focus mode needs an entitlement only Apple
+  issues: the API exists, and the daemon refuses anyone who is not Apple. The
+  cell that shipped could not have worked, and one that opens Control Center
+  for you is not worth a cell. If you had it pinned it disappears on its own.
+  To switch a Focus from the drawer, make a Shortcut with Apple's Set Focus
+  action and pin the shortcut.
+
 ## 1.0.1
 
 Three actions did nothing, and two of them were the same bug: a fire action
@@ -15,9 +28,8 @@ nobody could see. A failed action brings the drawer back now.
   opens the right pane in System Settings. If Drawer is already listed there
   and still says it has no permission, switch that row off and on again: macOS
   grants this to a signed copy rather than to a name.
-- A secondary click on Focus picks one of the nine modes macOS ships, and on
-  the microphone picks the input, the way Wi-Fi, Bluetooth and Volume already
-  did.
+- A secondary click on the microphone picks the input, the way Wi-Fi,
+  Bluetooth and Volume already did.
 - Eleven more actions: Dock magnification, Dock recents, minimise into icon,
   click wallpaper to clear the screen, the Finder's path bar and status bar,
   all file extensions, the screenshot thumbnail, seconds on the clock, True
@@ -42,7 +54,7 @@ a disk image.
 
 ### What a cell can be
 
-- An app, an Apple Shortcut, or one of fifty-two actions.
+- An app, an Apple Shortcut, or one of fifty-one actions.
 - Wi-Fi, Bluetooth, dark mode, Night Shift, Stage Manager, mute, volume,
   brightness, keep awake, lock screen, sleep, empty trash, three screenshots,
   Mission Control, show desktop and the screen saver.
@@ -51,7 +63,7 @@ a disk image.
 - Desktop Icons, Hidden Files, Hide Dock, Hide Menu Bar, Battery Percent,
   Relaunch Finder, Relaunch Dock.
 - Play or Pause, Next Track, Previous Track, Mute Mic, Clean Keyboard, Paste
-  as Text, Screen Recording, Focus.
+  as Text, Screen Recording.
 - A secondary click on Wi-Fi, Bluetooth or Volume picks a network, a paired
   device or an output rather than toggling.
 - Eject, Restart, Shut Down and Log Out arm on the first click and fire on the

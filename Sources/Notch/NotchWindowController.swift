@@ -1388,37 +1388,12 @@ final class NotchWindowController {
         return cell.kind == .add ? nil : cell
     }
 
-    private lazy var menuActions: MenuActions = {
-        let actions = MenuActions(
-            togglePinned: { [weak self] in self?.togglePinned() },
-            openSettings: { [weak self] in self?.onOpenSettings?() },
-            showDrawer: { [weak self] in self?.toggleFromHotKey() },
-            removeCell: { [weak self] id in self?.onRemove?(id) }
-        )
-        // A Focus mode that could not be set says so on the cell. The route
-        // is Control Center's own rows, which any macOS update can move, so
-        // the failure has to be visible rather than assumed away.
-        actions.onPickerFailure = { [weak self] error in
-            guard let self else { return }
-            let message = (error as? ActionError).map { failure in
-                if case .failed(let text) = failure { return text }
-                return "Focus could not be set."
-            } ?? "Focus could not be set."
-            self.reportFocusFailure(message)
-        }
-        return actions
-    }()
-
-    /// Shows a failed ring on the Focus cell for as long as any other failure
-    /// shows, and brings the drawer back if a fold has already closed it.
-    private func reportFocusFailure(_ message: String) {
-        let id = DrawerItem.action(ActionID.focus.rawValue).id
-        revealForFailure()
-        model.updateCell(id: id, state: .failed(message), live: true)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            MainActor.assumeIsolated { self?.model.updateCell(id: id, state: .ready, live: true) }
-        }
-    }
+    private lazy var menuActions = MenuActions(
+        togglePinned: { [weak self] in self?.togglePinned() },
+        openSettings: { [weak self] in self?.onOpenSettings?() },
+        showDrawer: { [weak self] in self?.toggleFromHotKey() },
+        removeCell: { [weak self] id in self?.onRemove?(id) }
+    )
 }
 
 /// A menu item needs an Objective-C target, which a `@MainActor` Swift class
@@ -1428,11 +1403,6 @@ final class MenuActions: NSObject {
     private let settings: () -> Void
     private let showDrawerAction: () -> Void
     private let removeCellAction: (String) -> Void
-    /// Where a picker failure goes. Only Focus sets one: the other three
-    /// pickers talk to hardware that reports its own state on the next read,
-    /// and Focus has no read at all, so a silent failure there would look
-    /// exactly like success.
-    var onPickerFailure: ((Error) -> Void)?
 
     init(togglePinned: @escaping () -> Void, openSettings: @escaping () -> Void,
          showDrawer: @escaping () -> Void, removeCell: @escaping (String) -> Void) {
@@ -1468,25 +1438,7 @@ final class MenuActions: NSObject {
         try? AudioDevices.setDefault(id)
     }
 
-    /// A Focus mode from the picker. Nothing else in the app can set one, and
-    /// the route it uses can be moved by any macOS update, so a failure is
-    /// reported on the cell rather than swallowed the way the other three
-    /// picker actions swallow theirs.
-    @objc func setFocus(_ sender: Any?) {
-        guard let mode = (sender as? NSMenuItem)?.representedObject as? String else { return }
-        MainActor.assumeIsolated {
-            do {
-                try FocusModes.set(mode)
-            } catch {
-                onPickerFailure?(error)
-            }
-        }
-    }
 
-    @objc func openFocusSettings(_ sender: Any?) {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.Focus-Settings.extension") else { return }
-        NSWorkspace.shared.open(url)
-    }
 
     @objc func chooseInput(_ sender: Any?) {
         guard let id = (sender as? NSMenuItem)?.representedObject as? UInt32 else { return }
@@ -1510,7 +1462,7 @@ final class MenuActions: NSObject {
 enum CellPicker {
     /// Which cells have one. Everything else gets the plain menu.
     static func has(_ id: ActionID) -> Bool {
-        id == .wifi || id == .bluetooth || id == .volume || id == .mute || id == .focus
+        id == .wifi || id == .bluetooth || id == .volume || id == .mute
             || id == .micMute || id == .micLevel
     }
 
@@ -1519,7 +1471,6 @@ enum CellPicker {
                       networks: [WiFiNetworks.Network]? = nil,
                       devices: [BluetoothDevices.Device]? = nil,
                       outputs: [AudioDevices.Device]? = nil,
-                      modes: [String]? = nil,
                       inputs: [AudioDevices.Device]? = nil) -> [NSMenuItem] {
         switch id {
         case .micMute, .micLevel:
@@ -1530,20 +1481,6 @@ enum CellPicker {
                 },
                 empty: "No inputs",
                 tail: nil,
-                target: target
-            )
-        case .focus:
-            // An explicit case, not the default: the default is the output
-            // list, so without this the Focus cell would offer a menu of
-            // speakers. No checkmarks, because nothing can read the active
-            // mode without Full Disk Access.
-            return list(
-                title: "Focus modes",
-                entries: (modes ?? FocusModes.standard).map {
-                    ($0, false, $0 as Any, #selector(MenuActions.setFocus(_:)))
-                },
-                empty: "No Focus modes",
-                tail: ("Focus Settings...", #selector(MenuActions.openFocusSettings(_:))),
                 target: target
             )
         case .wifi:

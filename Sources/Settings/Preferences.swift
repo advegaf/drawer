@@ -131,11 +131,27 @@ final class Preferences: ObservableObject {
         // empty: someone who removed every item has a stored empty list, and
         // must not find the seed back on the next launch.
         if let data = defaults.data(forKey: Keys.items) {
-            self.items = DrawerItem.decodeList(data)
+            self.items = Self.withoutRetiredActions(DrawerItem.decodeList(data))
         } else {
             let seeded = Self.seedItems
             self.items = seeded
             defaults.set(DrawerItem.encodeList(seeded), forKey: Keys.items)
+        }
+    }
+
+    /// Actions that have been taken out of the app, dropped on read.
+    ///
+    /// An unknown action id already resolves to a labelled, greyed, inert
+    /// cell, so nothing breaks without this. It is here so a drawer does not
+    /// keep a dead cell forever: Focus went when it turned out that setting a
+    /// mode needs an entitlement only Apple can issue, and the cell it left
+    /// behind could do nothing at all.
+    static let retiredActions: Set<String> = ["focus"]
+
+    static func withoutRetiredActions(_ items: [DrawerItem]) -> [DrawerItem] {
+        items.filter { item in
+            guard case .action(let raw) = item else { return true }
+            return !retiredActions.contains(raw)
         }
     }
 

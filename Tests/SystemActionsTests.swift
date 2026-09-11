@@ -220,16 +220,41 @@ final class SystemActionsTests: XCTestCase {
 
         let destination = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("\(UUID().uuidString).mov")
-        XCTAssertThrowsError(try ScreenRecording.shared.toggle(destination: destination)) {
+        XCTAssertThrowsError(try ScreenRecording.shared.set(true, destination: destination)) {
             XCTAssertEqual($0 as? ActionError, .failed(ScreenRecording.missing))
         }
         XCTAssertFalse(ScreenRecording.shared.isRunning, "a refused recording must not leave the cell reading On")
         XCTAssertEqual(requested, 1, "the first refusal should show Apple's prompt")
         XCTAssertEqual(opened, 0)
 
-        XCTAssertThrowsError(try ScreenRecording.shared.toggle(destination: destination))
+        XCTAssertThrowsError(try ScreenRecording.shared.set(true, destination: destination))
         XCTAssertEqual(requested, 1, "the prompt must not be asked for twice")
         XCTAssertEqual(opened, 1, "the second refusal should open the pane instead")
+    }
+
+    /// Asking for a state rather than a change is what makes a drifted ring
+    /// recoverable. Stopping something that is not running used to take the
+    /// start branch, return the opposite of what was asked for, and leave the
+    /// ring stuck On with a second recording running behind it.
+    @MainActor
+    func testStoppingSomethingThatIsNotRecordingDoesNotStartOne() throws {
+        let name = "ScreenRecordingIdempotent.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defaults.removePersistentDomain(forName: name)
+        ScreenRecording.defaults = defaults
+        var requested = 0
+        ScreenRecording.preflight = { requested += 1; return false }
+        defer {
+            ScreenRecording.defaults = .standard
+            ScreenRecording.preflight = { CGPreflightScreenCaptureAccess() }
+        }
+
+        XCTAssertFalse(ScreenRecording.shared.isRunning)
+        // Nothing is recording, so this is a no operation rather than a start.
+        XCTAssertNoThrow(try ScreenRecording.shared.set(false))
+        XCTAssertEqual(requested, 0, "stopping asked for the recording permission, so it took the start branch")
+        XCTAssertFalse(ScreenRecording.shared.isRunning)
+        XCTAssertNil(ScreenRecording.shared.elapsed, "a clock is running with nothing recording")
     }
 
     // MARK: - The switches added this round
@@ -411,7 +436,6 @@ final class CellPickerTests: XCTestCase {
         XCTAssertTrue(CellPicker.has(.bluetooth))
         XCTAssertTrue(CellPicker.has(.volume))
         XCTAssertTrue(CellPicker.has(.mute))
-        XCTAssertTrue(CellPicker.has(.focus))
         XCTAssertTrue(CellPicker.has(.micMute))
         XCTAssertTrue(CellPicker.has(.micLevel))
         for id in [ActionID.darkMode, .brightness, .keepAwake, .quitApp, .screenRecording] {
@@ -419,27 +443,7 @@ final class CellPickerTests: XCTestCase {
         }
     }
 
-    /// The Focus picker lists the modes macOS ships and ticks none of them.
-    /// Nothing here can read the active mode without Full Disk Access, and a
-    /// checkmark that is wrong is worse than no checkmark at all.
-    @MainActor
-    func testTheFocusPickerListsModesWithoutClaimingWhichIsOn() {
-        let items = CellPicker.items(for: .focus, target: actions(), modes: ["Do Not Disturb", "Work"])
-        XCTAssertEqual(items.first?.title, "Focus modes", "the picker lost its header")
-        let dnd = items.first { $0.title == "Do Not Disturb" }
-        XCTAssertEqual(dnd?.representedObject as? String, "Do Not Disturb")
-        XCTAssertTrue(items.filter { $0.state == .on }.isEmpty, "a Focus item cannot know that it is the one that is on")
-        XCTAssertNotNil(items.first { $0.title == "Focus Settings..." }, "no way through to the real settings")
-    }
 
-    /// The Focus cell must not fall through to the output list. The picker's
-    /// default arm is the audio outputs, so a missing case would hand the
-    /// Focus cell a menu of speakers.
-    @MainActor
-    func testTheFocusCellDoesNotGetTheOutputMenu() {
-        let items = CellPicker.items(for: .focus, target: actions(), modes: ["Work"])
-        XCTAssertNotEqual(items.first?.title, "Output")
-    }
 
     /// The microphone cells offer the inputs, and an input is ticked the same
     /// way an output is.
@@ -502,68 +506,5 @@ final class CellPickerTests: XCTestCase {
                 XCTAssertNotNil(item.target, "\(item.title) has no target")
             }
         }
-    }
-}
-
-/// Focus, and why it is a fire action rather than a picker.
-@MainActor
-final class FocusActionTests: XCTestCase {
-    func testFocusOpensControlCenterRatherThanClaimingToSetAMode() {
-        let spec = ActionRegistry.spec(for: .focus)
-        XCTAssertEqual(spec.title, "Focus")
-        // A toggle would be a lie: nothing here can read which mode is on
-        // without Full Disk Access, and nothing can set one without driving
-        // Control Center's rows through Accessibility.
-        guard case .fire(let destructive) = ActionRegistry.kind[.focus] else {
-            return XCTFail("Focus should be a fire action")
-        }
-        XCTAssertFalse(destructive)
-        XCTAssertTrue(AppleScript.controlCenter.contains("ControlCenter"))
-        XCTAssertTrue(AppleScript.controlCenter.contains("menu bar item 1"))
-    }
-
-    /// The picker asks Control Center for the row by name rather than by
-    /// index. Index was tried and measured as fragile here: the panel's
-    /// window index moved between two queries a second apart.
-    @MainActor
-    func testSettingAModeAsksForTheRowByNameAndNotByIndex() throws {
-        guard InputPermission.isTrusted else {
-            throw XCTSkip("setting a mode needs Accessibility, which this run does not have")
-        }
-        var source = ""
-        FocusModes.script = { source = $0 }
-        defer { FocusModes.script = { try AppleScript.run($0) } }
-
-        try FocusModes.set("Do Not Disturb")
-        XCTAssertTrue(source.contains("whose name contains \"Do Not Disturb\""),
-                      "the mode is not being matched by name")
-        XCTAssertTrue(source.contains("menu bar item \"Focus\""), "it should open the Focus panel, not the whole panel")
-        XCTAssertFalse(source.contains("window 2"), "no fixed window index: that is what broke before")
-    }
-
-    /// A Control Center that has moved reports the failure rather than
-    /// pretending the mode was set. Focus has no read back, so a silent
-    /// failure here would be indistinguishable from success.
-    @MainActor
-    func testAModeThatCannotBeFoundIsReportedRatherThanSwallowed() throws {
-        guard InputPermission.isTrusted else {
-            throw XCTSkip("setting a mode needs Accessibility, which this run does not have")
-        }
-        FocusModes.script = { _ in throw ActionError.failed("System Events got an error") }
-        defer { FocusModes.script = { try AppleScript.run($0) } }
-
-        XCTAssertThrowsError(try FocusModes.set("Work")) { error in
-            guard case .failed(let message)? = error as? ActionError else {
-                return XCTFail("a missing row should be a failed action, not \(error)")
-            }
-            XCTAssertFalse(message.isEmpty)
-        }
-    }
-
-    /// The nine modes macOS ships, in the order Control Center lists them.
-    func testTheStandardModesAreTheOnesMacOSShips() {
-        XCTAssertEqual(FocusModes.standard.first, "Do Not Disturb")
-        XCTAssertEqual(FocusModes.standard.count, 9)
-        XCTAssertTrue(FocusModes.standard.contains("Sleep"))
     }
 }

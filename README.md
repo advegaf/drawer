@@ -48,7 +48,7 @@ Requires macOS 26.
 
 ## What can go in it
 
-Fifty two actions, every app you have installed, and every Apple Shortcut.
+Fifty one actions, every app you have installed, and every Apple Shortcut.
 
 Wi-Fi, Bluetooth, dark mode, Night Shift, Stage Manager, volume and brightness as
 levels you drag, mute, mute the microphone, keep awake, lock screen, sleep, sleep
@@ -57,7 +57,7 @@ Control, show desktop, screen saver, quit the app in front, hide the others,
 force quit, eject every disk, restart, shut down, log out, desktop icons, hidden
 files, Dock and menu bar auto-hide, battery percentage, relaunch the Finder or
 the Dock, play and pause, next and previous track, paste without formatting, lock
-the keyboard so it can be wiped, and Focus.
+the keyboard so it can be wiped.
 
 The settings people actually change: Dock magnification, recent apps in the Dock,
 minimise into the app icon, click the wallpaper to move every window aside, the
@@ -67,8 +67,8 @@ level.
 
 A secondary click opens a picker rather than a toggle: on Wi-Fi the networks this
 Mac knows, on Bluetooth the paired devices with the connected ones first, on
-Volume the outputs sound can go to, on the microphone the inputs it can come
-from, and on Focus the modes macOS ships. Reconnecting headphones is then two
+Volume the outputs sound can go to, and on the microphone the inputs it can come
+from. Reconnecting headphones is then two
 clicks at the edge of the screen rather than a trip through System Settings.
 
 The five that cannot be taken back (eject, restart, shut down, log out, force
@@ -114,15 +114,9 @@ has no permission, switch that row off and on again.
 | What you use | What it asks for | Why |
 | --- | --- | --- |
 | Dark mode, Empty Trash, Restart, Shut Down, Log Out, Force Quit | Automation | They are System Events and Finder commands |
-| Clean Keyboard, Paste as Text, the transport keys, Focus modes | Accessibility | Posting and swallowing keystrokes needs it |
+| Clean Keyboard, Paste as Text, the transport keys | Accessibility | Posting and swallowing keystrokes needs it |
 | Screen Recording | Screen Recording | Recording the screen is charged to Drawer, not to the tool it runs |
 | Bluetooth | Bluetooth | Reading and setting the radio's power |
-
-Focus is the one thing macOS gives no supported way to set. A plain click opens
-Control Center's own list, and a secondary click offers the nine modes macOS
-ships and sets one by driving Control Center's rows. That route is Apple's user
-interface rather than an API, so it can move in any macOS update, and the cell
-says so when it does rather than failing quietly.
 
 ## Build it yourself
 

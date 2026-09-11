@@ -77,10 +77,16 @@ enum DesktopActions {
 /// kept and sent an interrupt on the second click. A kill would leave the
 /// file unplayable: the recorder writes its index on the way out.
 @MainActor
-final class ScreenRecording {
+final class ScreenRecording: ObservableObject {
     static let shared = ScreenRecording()
 
     private var process: Process?
+    private var startedAt: Date?
+    private var ticker: Timer?
+    /// How long the current recording has been going, for the cell's card.
+    /// Nil when nothing is recording, which is also how the card knows to
+    /// stop saying On and start saying nothing.
+    @Published private(set) var elapsed: TimeInterval?
     private(set) var output: URL?
     var isRunning: Bool { process?.isRunning == true }
 
@@ -127,11 +133,19 @@ final class ScreenRecording {
         throw ActionError.failed(Self.missing)
     }
 
-    @discardableResult
-    func toggle(destination: URL? = nil) throws -> Bool {
-        if isRunning {
+    /// Start or stop, asked for explicitly.
+    ///
+    /// It used to be a toggle that read its own state to decide which way to
+    /// go, and that is what made a stuck cell unrecoverable: once the ring and
+    /// the process disagreed, a click meant to stop took the start branch,
+    /// returned the opposite of what was asked for, and the failure handler
+    /// put the ring back where it was. Asking for a state rather than a change
+    /// makes a click idempotent, so a drifted ring corrects itself.
+    func set(_ on: Bool, destination: URL? = nil) throws {
+        guard on != isRunning else { return }
+        guard on else {
             try stopAndVerify()
-            return false
+            return
         }
         try requirePermission()
         let url = destination ?? Self.destination()
@@ -145,6 +159,15 @@ final class ScreenRecording {
         }
         process = task
         output = url
+        startedAt = Date()
+        elapsed = 0
+        ticker?.invalidate()
+        ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let startedAt = self.startedAt, self.isRunning else { return }
+                self.elapsed = Date().timeIntervalSince(startedAt)
+            }
+        }
         // A denial arrives after the exec succeeds, so the launch alone
         // proves nothing. If the tool is gone a beat later, the cell said On
         // while nothing was recording, which is what this catches.
@@ -153,12 +176,19 @@ final class ScreenRecording {
                 guard let self, let task, self.process === task, !task.isRunning else { return }
                 self.process = nil
                 self.output = nil
+                self.clearTimer()
                 // The cell is reading On at this point. Publishing false is
                 // what turns the ring back off without waiting for a click.
                 self.changes.send(false)
             }
         }
-        return true
+    }
+
+    private func clearTimer() {
+        ticker?.invalidate()
+        ticker = nil
+        startedAt = nil
+        elapsed = nil
     }
 
     /// Says when a recording ends without being asked to, which on this path
@@ -166,6 +196,7 @@ final class ScreenRecording {
     let changes = PassthroughSubject<Bool, Never>()
 
     func stop() {
+        clearTimer()
         guard let process, process.isRunning else { self.process = nil; return }
         process.interrupt()
         self.process = nil

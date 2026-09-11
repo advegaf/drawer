@@ -23,17 +23,6 @@ enum AppleScript {
     static let emptyTrash = "tell application \"Finder\" to empty trash"
     // Command Option Escape, the same chord the Apple menu's Force Quit item
     // uses. There is no scriptable command for that window.
-    /// Opens Control Center, which is where the Focus modes live.
-    ///
-    /// Not a script that sets a named mode: there is no supported way to do
-    /// that. The mode list is in `~/Library/DoNotDisturb/DB`, which needs
-    /// Full Disk Access to read, and the only writable path is driving
-    /// Control Center's own rows through Accessibility, which breaks on any
-    /// macOS update. Pressing the menu bar item puts Apple's own Focus
-    /// module under the pointer instead, with every mode this Mac has in
-    /// it. A single mode can also be pinned directly as a Shortcuts cell.
-    static let controlCenter =
-        "tell application \"System Events\" to tell process \"ControlCenter\" to click menu bar item 1 of menu bar 1"
     static let restart = "tell application \"System Events\" to restart"
     static let shutDown = "tell application \"System Events\" to shut down"
     static let logOut = "tell application \"System Events\" to log out"

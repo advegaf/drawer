@@ -13,7 +13,6 @@ enum ActionID: String, Codable, CaseIterable {
          desktopIcons, hiddenFiles, dockAutohide, menuBarAutohide, batteryPercentage,
          relaunchFinder, relaunchDock,
          playPause, nextTrack, previousTrack, micMute, keyboardCleaning, plainPaste, screenRecording,
-         focus,
          dockMagnification, dockRecents, minimizeIntoIcon, clickWallpaper,
          finderPathBar, finderStatusBar, fileExtensions, screenshotThumbnail, clockSeconds,
          trueTone, micLevel
@@ -170,8 +169,6 @@ enum ActionRegistry {
             detail: "Match the display's white to the room", kind: .toggle),
         Row(id: .micLevel, title: "Mic Level", symbol: "mic.and.signal.meter",
             detail: "Input volume for the microphone in use", kind: .level),
-        Row(id: .focus, title: "Focus", symbol: "moon.circle",
-            detail: "Open Control Center's Focus modes", kind: .fire(destructive: false)),
     ]
 
     /// Every action, with a real control once its own phase gives it one.
@@ -388,17 +385,13 @@ enum ActionRegistry {
             }, destructive: false)
         case .plainPaste:
             return .fire(run: { try await MainActor.run { try PlainPaste.run() } }, destructive: false)
-        case .focus:
-            return .fire(run: {
-                try await MainActor.run { try AppleScript.run(AppleScript.controlCenter) }
-            }, destructive: false)
         case .screenRecording:
             return .toggle(
                 read: { await MainActor.run { ScreenRecording.shared.isRunning } },
                 write: { on in
                     try await MainActor.run {
-                        let running = try ScreenRecording.shared.toggle()
-                        guard running == on else { throw ActionError.notApplied }
+                        try ScreenRecording.shared.set(on)
+                        guard ScreenRecording.shared.isRunning == on else { throw ActionError.notApplied }
                     }
                 },
                 // A refused recording ends on its own a beat after it

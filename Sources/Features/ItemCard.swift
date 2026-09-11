@@ -4,6 +4,7 @@ import SwiftUI
 /// here, and no button; the window controller dispatches clicks and drags by
 /// geometry, not by anything this view attaches.
 struct ItemCard: View {
+    @ObservedObject private var recording = ScreenRecording.shared
     let cell: DrawerCell
     let direction: NotchEdge.TooltipDirection
     /// The user's look. `Theme` rather than `Metrics` alone, since the level
@@ -89,8 +90,20 @@ struct ItemCard: View {
 
     // MARK: - Note
 
+    /// A recording says how long it has been going rather than just On.
+    ///
+    /// The one cell whose On is worth a number: a recording that died leaves
+    /// a ring that looks exactly like a recording that is fine, and a clock
+    /// that has stopped counting is the difference.
+    private var recordingNote: String? {
+        guard cell.id == "action:screenRecording", let elapsed = recording.elapsed else { return nil }
+        let seconds = Int(elapsed.rounded())
+        return String(format: "Recording %d:%02d", seconds / 60, seconds % 60)
+    }
+
     private var note: String? {
         if case .failed = cell.state { return "Failed" }
+        if let recordingNote { return recordingNote }
         switch cell.kind {
         case .launch:
             return cell.state == .notInstalled ? "Not installed" : nil
