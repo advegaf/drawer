@@ -134,7 +134,13 @@ enum NotchLayout {
     }
 
     // The hover tooltip
-    static let cardWidth     = Design.px(600)
+    /// What a card was, fixed, until a note got longer than "62%".
+    ///
+    /// Now the floor rather than the width: a short card looks exactly as it
+    /// did, and only a card with more to say grows. The ceiling is what keeps
+    /// a failure sentence from running across the screen.
+    static let cardMinWidth  = Design.px(600)
+    static let cardMaxWidth  = Design.px(940)
     static let cardCorner    = Design.px(32)
     static let cardPadding   = Design.px(32)
     static let cardGap = Design.px(32)
@@ -184,7 +190,39 @@ enum NotchLayout {
     static let cellLabelWidth = Design.px(190)
 
     /// How wide a line of body text is inside the card.
-    static var cardTextWidth: CGFloat { cardWidth - 2 * cardPadding }
+    static func cardTextWidth(_ width: CGFloat) -> CGFloat { width - 2 * cardPadding }
+
+    /// How wide a card has to be to say what it says.
+    ///
+    /// `TooltipHeader` lays out the glyph, a gap, the title, a minimum spacer
+    /// and the note on one line, and the title carries no line limit, so at a
+    /// fixed width SwiftUI squeezes the title first and then clips the note.
+    /// Measuring the row is what stops that: "Screen Recording" beside
+    /// "Recording 0:15" needs more than the 201.6pt a fixed card left for text.
+    static func cardWidth(title: String, note: String?, metrics: Metrics = .default) -> CGFloat {
+        let titleWidth = measure(title, font: Typography.cardTitleFont(metrics))
+        // The header is an HStack, so its spacing sits between every pair of
+        // children: glyph to title, title to spacer, spacer to note. Counting
+        // one gap instead of three is 12.8pt short, which is a title that
+        // still truncates in a card that measured as wide enough.
+        var content = glyphSize(metrics) + headerGap + titleWidth
+        if let note, !note.isEmpty {
+            content += 2 * headerGap + headerSpacer + measure(note, font: Typography.cardBodyFont(metrics))
+        }
+        // A little slack: AppKit measures a string and SwiftUI draws it, and
+        // the two disagree by a fraction of a point on some faces. Slack can
+        // only ever leave a card a hair wide, which nobody sees.
+        return min(cardMaxWidth, max(cardMinWidth, content + 2 * cardPadding + Design.px(8)))
+    }
+
+    /// The `Spacer(minLength:)` between the title and the note in the header.
+    static let headerSpacer = Design.px(20)
+
+    private static func measure(_ text: String, font: NSFont) -> CGFloat {
+        // Rounded up: a fraction of a point short is a truncated glyph, and a
+        // fraction over is invisible.
+        (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+    }
 
     private static func lineHeight(_ font: NSFont) -> CGFloat {
         ceil(font.ascender - font.descender + font.leading)
@@ -346,7 +384,8 @@ enum NotchLayout {
     /// so the card has somewhere to live. Beside the stack on a side edge,
     /// below or above it on a horizontal one.
     static func tooltipDepth(for edge: NotchEdge,
-                             maxCardHeight: CGFloat = NotchLayout.maxCardHeight()) -> CGFloat {
+                             maxCardHeight: CGFloat = NotchLayout.maxCardHeight(),
+                             cardWidth: CGFloat = cardMinWidth) -> CGFloat {
         cardWidth + cardGap + cardShadowPad
     }
 }

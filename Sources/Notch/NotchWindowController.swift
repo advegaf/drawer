@@ -425,7 +425,9 @@ final class NotchWindowController {
         return CGRect(
             x: card.minX + NotchLayout.cardPadding,
             y: card.minY + NotchLayout.cardPadding + NotchLayout.cardTitleLineHeight(model.metrics) + NotchLayout.headerToBlock,
-            width: NotchLayout.cardTextWidth,
+            // From the card that is actually there, since a card is now as
+            // wide as its own text rather than a fixed size.
+            width: NotchLayout.cardTextWidth(card.width),
             height: NotchLayout.sliderHitDepth
         )
     }

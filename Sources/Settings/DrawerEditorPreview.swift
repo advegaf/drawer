@@ -9,9 +9,9 @@ struct EditorPreviewLayout {
     var shapeLength: CGFloat {
         NotchLayout.shapeLength(cellCount: max(1, count), edge: edge, flare: NotchLayout.curlRadius, metrics: metrics)
     }
-    var length: CGFloat { max(shapeLength + NotchLayout.orbDiameter * 1.5, NotchLayout.cardWidth + 24) }
+    var length: CGFloat { max(shapeLength + NotchLayout.orbDiameter * 1.5, NotchLayout.cardMaxWidth + 24) }
     var depth: CGFloat {
-        return NotchLayout.bodyDepth(for: edge, metrics: metrics) + NotchLayout.cardWidth + NotchLayout.cardGap + 12
+        return NotchLayout.bodyDepth(for: edge, metrics: metrics) + NotchLayout.cardMaxWidth + NotchLayout.cardGap + 12
     }
     var size: CGSize { NotchPlacement.panelSize(edge: edge, length: length, depth: depth) }
     var placement: NotchPlacement { NotchPlacement(edge: edge, panelSize: size) }
@@ -223,7 +223,7 @@ struct DrawerEditorPreview: View {
         let start = min(max(0, along - height / 2), layout.length - height)
         return layout.placement.rect(along: start,
             across: NotchLayout.bodyDepth(for: edge, metrics: theme.metrics) + NotchLayout.cardGap,
-            length: height, depth: NotchLayout.cardWidth)
+            length: height, depth: NotchLayout.cardMaxWidth)
     }
     private var canvas: some View {
         ZStack(alignment: .topLeading) {

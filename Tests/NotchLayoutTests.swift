@@ -378,5 +378,58 @@ final class NotchVisibilityTests: XCTestCase {
             XCTAssertFalse(mode.explanation.isEmpty)
         }
     }
-}
 
+    // MARK: - The card's width
+
+    /// A card used to be one fixed width for everything it could say, so
+    /// "Screen Recording" beside "Recording 0:15" needed 196pt of text in a
+    /// card that offered 157. The title lost first, as "Screen Re...", and the
+    /// clock lost next.
+    func testACardIsAsWideAsWhatItHasToSay() {
+        let short = NotchLayout.cardWidth(title: "Wi-Fi", note: "On")
+        let long = NotchLayout.cardWidth(title: "Screen Recording", note: "Recording 0:15")
+        XCTAssertEqual(short, NotchLayout.cardMinWidth, accuracy: 0.5,
+                       "a short card should look exactly as it did before")
+        XCTAssertGreaterThan(long, short, "the long card never grew")
+        XCTAssertLessThanOrEqual(long, NotchLayout.cardMaxWidth)
+
+        // The measurement has to leave room for both strings, the glyph, the
+        // gaps and both paddings, or it has not fixed anything.
+        let title = ("Screen Recording" as NSString)
+            .size(withAttributes: [.font: Typography.cardTitleFont()]).width
+        let note = ("Recording 0:15" as NSString)
+            .size(withAttributes: [.font: Typography.cardBodyFont()]).width
+        XCTAssertGreaterThanOrEqual(NotchLayout.cardTextWidth(long), title + note,
+                                    "the text does not fit the card that was measured for it")
+    }
+
+    /// A clock that ticks must not resize the card underneath the pointer.
+    ///
+    /// Two halves: the digits are monospaced, so 0:09 and 0:10 measure the
+    /// same, and the card is measured against the widest clock it can reach,
+    /// so passing ten minutes does not step it wider either.
+    @MainActor
+    func testTheRecordingClockKeepsOneWidthAsItCounts() {
+        let sameDigits = ["Recording 0:09", "Recording 0:10"].map {
+            NotchLayout.cardWidth(title: "Screen Recording", note: $0)
+        }
+        XCTAssertEqual(Set(sameDigits).count, 1, "monospaced digits are not being measured: \(sameDigits)")
+
+        let model = NotchViewModel()
+        let cell = DrawerCell(id: "action:screenRecording", title: "Screen Recording",
+                              icon: .symbol("record.circle"), kind: .toggle, state: .on)
+        model.liveCardNote = { _ in "Recording 0:09" }
+        let early = NotchLayout.cardWidth(title: cell.title, note: model.measuringNote(for: cell))
+        model.liveCardNote = { _ in "Recording 88:88" }
+        let late = NotchLayout.cardWidth(title: cell.title, note: model.measuringNote(for: cell))
+        XCTAssertEqual(early, late, accuracy: 0.5, "the card grows when the clock passes ten minutes")
+    }
+
+    /// A sentence cannot push a card across the screen.
+    func testTheWidestNoteStopsAtTheCap() {
+        let width = NotchLayout.cardWidth(
+            title: "Screen Recording",
+            note: "Drawer needs Screen Recording. If it is already listed in Privacy and Security, switch it off and on again.")
+        XCTAssertEqual(width, NotchLayout.cardMaxWidth, accuracy: 0.5)
+    }
+}

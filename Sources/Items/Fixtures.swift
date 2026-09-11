@@ -35,6 +35,8 @@ enum Fixtures {
                        kind: .fire(destructive: false), state: .ready),
             DrawerCell(id: "curated-lock", title: "Lock Screen", icon: .symbol("lock.fill"),
                        kind: .fire(destructive: false), state: .ready),
+            DrawerCell(id: "action:screenRecording", title: "Screen Recording",
+                       icon: .symbol("record.circle"), kind: .toggle, state: .on),
             DrawerCell(id: "curated-shortcut", title: "Start focus", icon: .symbol("square.2.layers.3d.fill"),
                        kind: .shortcut, state: .ready),
             DrawerCell.add,

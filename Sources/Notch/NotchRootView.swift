@@ -218,7 +218,8 @@ struct NotchRootView: View {
            let index = model.hoveredIndex,
            let card = model.cardPlacement(index: index, panelSize: place.panelSize) {
             ItemCard(cell: cell, direction: model.edge.tooltipDirection, theme: theme,
-                     pointerOffset: card.pointerOffset, presentationHeight: card.body.height)
+                     pointerOffset: card.pointerOffset, presentationHeight: card.body.height,
+                     presentationWidth: card.body.width)
                 .frame(width: card.body.width, height: card.body.height)
                 .position(x: card.body.midX, y: card.body.midY)
                 .transition(.opacity.combined(with: .offset(

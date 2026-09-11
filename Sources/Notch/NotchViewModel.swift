@@ -268,7 +268,9 @@ final class NotchViewModel: ObservableObject {
         let cell = cells[index]
         let height = NotchLayout.cardHeight(for: cell.kind, state: cell.state, metrics: metrics)
         let alongExtent = height
-        let acrossExtent = NotchLayout.cardWidth
+        // Measured, not assumed: a long title beside a long note needs more
+        // than the floor, and the hit rect has to be the card that is drawn.
+        let acrossExtent = NotchLayout.cardWidth(title: cell.title, note: measuringNote(for: cell), metrics: metrics)
         let source = slack + ringCenter(visible: slot)
         let limit = size.height
         let start = min(max(source - alongExtent / 2, NotchLayout.cardShadowPad),
@@ -284,6 +286,45 @@ final class NotchViewModel: ObservableObject {
                                 length: max(0, bridgeEnd - bridgeStart), depth: NotchLayout.cardGap)
         return CardPlacement(body: body, bridge: bridge, pointerOffset: pointer - alongExtent / 2)
     }
+
+    /// The note a card shows beside its title, for measuring its width.
+    ///
+    /// The view builds the same string in `ItemCard.note`. This is the model's
+    /// copy of the longest thing it can be, so the rect the pointer can click
+    /// and the card that is drawn are the same width.
+    func cardNote(for cell: DrawerCell) -> String? {
+        if case .failed = cell.state { return "Failed" }
+        switch cell.kind {
+        case .launch: return cell.state == .notInstalled ? "Not installed" : nil
+        case .toggle:
+            if let live = liveCardNote?(cell.id) { return live }
+            switch cell.state {
+            case .on: return "On"
+            case .off: return "Off"
+            case .unavailable, .unknown: return "Unavailable"
+            default: return nil
+            }
+        case .level: return "100%"
+        case .fire: return cell.state == .armed ? "Click again" : nil
+        case .shortcut: return cell.state == .notFound ? "Not found" : nil
+        case .add: return nil
+        }
+    }
+
+    /// What the card is measured against, which is not always what it says.
+    ///
+    /// A recording's clock is measured at its widest, so the card holds one
+    /// width for the whole recording instead of stepping wider when the
+    /// minutes reach two digits. Everything else is measured by what it
+    /// actually shows.
+    func measuringNote(for cell: DrawerCell) -> String? {
+        guard let note = cardNote(for: cell) else { return nil }
+        return note.hasPrefix("Recording ") ? Self.widestNote(for: cell) : note
+    }
+
+    /// Set by whatever can say more than On, which today is the recording
+    /// clock. Keeps the model from importing an action.
+    var liveCardNote: ((String) -> String?)?
 
     /// The straight part of the shape, flares excluded.
     var bodyLength: CGFloat {
@@ -363,8 +404,36 @@ final class NotchViewModel: ObservableObject {
             edge: edge,
             length: shapeLength(cellCount: cellCount)
                 + 2 * NotchLayout.slack(for: edge, maxCardHeight: card),
-            depth: NotchLayout.tooltipDepth(for: edge, maxCardHeight: card)
+            depth: NotchLayout.tooltipDepth(for: edge, maxCardHeight: card, cardWidth: widestCardWidth)
                 + NotchLayout.bodyDepth(for: edge, metrics: metrics)
         )
+    }
+
+    /// Room for the widest card any pinned cell could ever open.
+    ///
+    /// The window is sized once per set of cells rather than per hover, so it
+    /// has to be the worst case for each cell rather than what that cell says
+    /// right now. Otherwise a card that grows, a recording clock passing into
+    /// double digits for instance, would resize the window under an open card,
+    /// and this repository already recorded what a panel resize does to a
+    /// SwiftUI render in flight.
+    var widestCardWidth: CGFloat {
+        let widest = cells.map {
+            NotchLayout.cardWidth(title: $0.title, note: Self.widestNote(for: $0), metrics: metrics)
+        }.max()
+        return widest ?? NotchLayout.cardMinWidth
+    }
+
+    /// The longest note a cell can ever show, so the reserve does not move.
+    static func widestNote(for cell: DrawerCell) -> String {
+        if cell.id == "action:screenRecording" { return "Recording 88:88" }
+        switch cell.kind {
+        case .launch: return "Not installed"
+        case .toggle: return "Unavailable"
+        case .level: return "100%"
+        case .fire: return "Click again"
+        case .shortcut: return "Not found"
+        case .add: return ""
+        }
     }
 }

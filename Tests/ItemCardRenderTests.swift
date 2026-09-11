@@ -36,7 +36,8 @@ final class ItemCardRenderTests: XCTestCase {
         renderer.scale = 1
         guard let image = renderer.cgImage else { return XCTFail("no image") }
         XCTAssertEqual(CGFloat(image.height), height + Self.pad * 2, accuracy: 1)
-        XCTAssertEqual(CGFloat(image.width), NotchLayout.cardWidth + Self.pad * 2, accuracy: 1)
+        let width = NotchLayout.cardWidth(title: cell.title, note: "50%")
+        XCTAssertEqual(CGFloat(image.width), width + Self.pad * 2, accuracy: 1)
     }
 
     func testUnavailableAndUnknownLevelsDoNotPaintASlider() {
@@ -60,8 +61,11 @@ final class ItemCardRenderTests: XCTestCase {
 
     private func sliderIsPainted(_ rep: NSBitmapImageRep) -> Bool {
         let top = Self.pad + NotchLayout.cardPadding + NotchLayout.cardTitleLineHeight() + NotchLayout.headerToBlock
+        // A card is as wide as its own text now, and the floor is the
+        // narrowest it can be, so sampling to the floor stays inside it.
+        let right = Self.pad + NotchLayout.cardMinWidth - NotchLayout.cardPadding
         for y in Int(ceil(top))..<Int(top + NotchLayout.sliderHitDepth) {
-            for x in Int(Self.pad + NotchLayout.cardPadding)..<Int(Self.pad + NotchLayout.cardWidth - NotchLayout.cardPadding) {
+            for x in Int(Self.pad + NotchLayout.cardPadding)..<Int(right) {
                 if isPainted(rep.colorAt(x: x, y: y)) { return true }
             }
         }
@@ -100,7 +104,7 @@ final class ItemCardRenderTests: XCTestCase {
         let bandTop = max(0, Int((pad + cardHeight - NotchLayout.cardPadding).rounded()))
         let bandBottom = min(rep.pixelsHigh, Int((pad + cardHeight).rounded()))
         let minX = Int(pad.rounded())
-        let maxX = min(rep.pixelsWide, Int((pad + NotchLayout.cardWidth).rounded()))
+        let maxX = min(rep.pixelsWide, Int((pad + NotchLayout.cardMinWidth).rounded()))
         for x in stride(from: minX, to: maxX, by: 2) {
             for y in stride(from: bandTop, to: bandBottom, by: 1) {
                 if isPainted(rep.colorAt(x: x, y: y)) { return false }

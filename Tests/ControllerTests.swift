@@ -814,7 +814,9 @@ final class ControllerTests: XCTestCase {
         // The same `card` NotchRootView.tooltipCentre positions the card
         // with: the width, not the height, since across is how far the card
         // reaches from the bar into the screen.
-        let cardAcross = NotchLayout.cardWidth
+        let cardAcross = NotchLayout.cardWidth(title: cell.title,
+                                               note: controller.model.cardNote(for: cell),
+                                               metrics: controller.model.metrics)
         let expectedCentre = place.point(
             along: controller.model.slack + controller.model.ringCenter(visible: slot),
             across: controller.model.tooltipInset + cardAcross / 2

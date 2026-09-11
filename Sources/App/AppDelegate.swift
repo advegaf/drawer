@@ -10,6 +10,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var resolver: ItemResolver?
     private var liveLevels: LiveLevels?
     private var runner: ActionRunner?
+
+    /// The one note that is neither On nor Off. A static rather than a closure
+    /// on the model, so the notch layer stays clear of the actions layer and
+    /// the screenshot lever has something to replace.
+    private static let recordingNote: (String) -> String? = { id in
+        guard id == "action:screenRecording" else { return nil }
+        guard let elapsed = MainActor.assumeIsolated({ ScreenRecording.shared.elapsed }) else { return nil }
+        let seconds = Int(elapsed.rounded())
+        return String(format: "Recording %d:%02d", seconds / 60, seconds % 60)
+    }
     private var hotKey: HotKey?
     private var guide: GuideWindowController?
     private var cancellables = Set<AnyCancellable>()
@@ -137,6 +147,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // this one. Only the window controller knows which that is once the
         // chord has taken focus.
         SystemActions.appInFront = { [weak controller] in controller?.appBeforeDrawer }
+        // The recording clock is the one note that is neither On nor Off, and
+        // the model has to know about it to measure the card it will be drawn
+        // in. A closure rather than an import, so the notch layer stays clear
+        // of the actions layer.
+        #if DEBUG
+        // A screenshot lever, the way DRAWER_LIBRARY_HOVER is one: the long
+        // note case needs a real recording otherwise, which a capture run
+        // cannot start.
+        if let forced = env["DRAWER_CARD_NOTE"], !forced.isEmpty {
+            controller.model.liveCardNote = { _ in forced }
+            ItemCard.forcedNote = { _ in forced }
+        } else {
+            controller.model.liveCardNote = Self.recordingNote
+        }
+        #else
+        controller.model.liveCardNote = Self.recordingNote
+        #endif
         controller.onActivate = { [weak runner] cell in runner?.activate(cell) }
         controller.onSetLevel = { [weak runner] cell, value in runner?.setLevel(cell, to: value) }
         controller.onBeginLevelInteraction = { [weak runner] cell in runner?.beginLevelInteraction(cell) }

@@ -16,6 +16,9 @@ struct ItemCard: View {
     var sliderFraction: Double?
     var pointerOffset: CGFloat = 0
     var presentationHeight: CGFloat?
+    /// The width the panel already measured for this card's rect, so the
+    /// drawn card and the clickable card cannot drift apart.
+    var presentationWidth: CGFloat?
 
     /// The word a toggle showed before it went pending, kept by id so a click
     /// on one cell never bleeds its word into another's card.
@@ -25,8 +28,21 @@ struct ItemCard: View {
         presentationHeight ?? NotchLayout.cardHeight(for: cell.kind, state: cell.state, metrics: metrics)
     }
 
+    /// The card's own width, measured from what it has to say.
+    ///
+    /// Passed in when the panel has already computed it for the hit rect, so
+    /// the drawn card and the clickable card are the same rectangle. Measured
+    /// here when a preview or a test renders a card on its own.
+    private var width: CGFloat {
+        if let presentationWidth { return presentationWidth }
+        // A recording is measured at its widest clock, so the card does not
+        // step wider when the minutes reach two digits.
+        let measured = recordingNote == nil ? note : "Recording 88:88"
+        return NotchLayout.cardWidth(title: cell.title, note: measured, metrics: metrics)
+    }
+
     var body: some View {
-        TooltipShell(height: height, direction: direction, theme: theme, pointerOffset: pointerOffset) {
+        TooltipShell(height: height, width: width, direction: direction, theme: theme, pointerOffset: pointerOffset) {
             VStack(alignment: .leading, spacing: 0) {
                 TooltipHeader(title: cell.title, note: note, noteColor: noteColor, metrics: metrics, theme: theme) {
                     mark
@@ -95,7 +111,13 @@ struct ItemCard: View {
     /// The one cell whose On is worth a number: a recording that died leaves
     /// a ring that looks exactly like a recording that is fine, and a clock
     /// that has stopped counting is the difference.
+    /// A screenshot lever, set only by a DEBUG launch: the long note case
+    /// cannot be photographed otherwise, since a capture run has no way to
+    /// start a real recording.
+    nonisolated(unsafe) static var forcedNote: ((String) -> String?)?
+
     private var recordingNote: String? {
+        if let forced = Self.forcedNote?(cell.id) { return forced }
         guard cell.id == "action:screenRecording", let elapsed = recording.elapsed else { return nil }
         let seconds = Int(elapsed.rounded())
         return String(format: "Recording %d:%02d", seconds / 60, seconds % 60)

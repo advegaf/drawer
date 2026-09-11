@@ -42,6 +42,9 @@ struct PopoverShape: Shape {
 
 struct TooltipShell<Content: View>: View {
     let height: CGFloat
+    /// Measured from the card's own text rather than a constant, so a long
+    /// title and a long note both fit. Defaults to the floor for previews.
+    var width: CGFloat = NotchLayout.cardMinWidth
     let direction: NotchEdge.TooltipDirection
     var theme: Theme = .default
     var pointerOffset: CGFloat = 0
@@ -58,13 +61,13 @@ struct TooltipShell<Content: View>: View {
     var body: some View {
         content
             .padding(NotchLayout.cardPadding)
-            .frame(width: NotchLayout.cardWidth, height: height, alignment: .topLeading)
+            .frame(width: width, height: height, alignment: .topLeading)
             .clipShape(RoundedRectangle(cornerRadius: NotchLayout.cardCorner))
             .offset(x: -pointer.width / 2, y: -pointer.height / 2)
-            .frame(width: NotchLayout.cardWidth + abs(pointer.width), height: height + abs(pointer.height))
+            .frame(width: width + abs(pointer.width), height: height + abs(pointer.height))
             .modifier(DrawerSurface(shape: PopoverShape(direction: direction, pointerOffset: pointerOffset), theme: theme))
             .offset(x: pointer.width / 2, y: pointer.height / 2)
-            .frame(width: NotchLayout.cardWidth, height: height)
+            .frame(width: width, height: height)
     }
 }
 
@@ -90,7 +93,7 @@ struct TooltipHeader<Mark: View>: View {
             if let note {
                 Spacer(minLength: Design.px(20))
                 Text(note)
-                    .font(Typography.cardBody(metrics))
+                    .font(Typography.cardBody(metrics).monospacedDigit())
                     .foregroundStyle(noteColor)
                     .lineLimit(1)
             }

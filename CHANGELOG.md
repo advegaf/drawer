@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.3
+
+- **The hover card fits what it says.** It was one fixed width for every cell,
+  which left 157pt for a title and a note, so Screen Recording beside its clock
+  drew as "Screen Recordi..." and the timer got clipped as well. The card is
+  measured now, never narrower than it was and never wider than a cap, and the
+  clock keeps one width from 0:00 into double digit minutes.
+
 ## 1.0.2
 
 - **Screen Recording stops when you tell it to.** A click asks for a state now
