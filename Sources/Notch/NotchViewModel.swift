@@ -97,8 +97,10 @@ final class NotchViewModel: ObservableObject {
         let limit = screenSize.height
         var fits = 1
         for n in 1...Self.fitCeiling {
-            let size = panelSize(cellCount: n)
-            guard size.height <= limit else { break }
+            // The length, not the whole size: the depth is where the cards are
+            // measured, and this walk runs up to 200 times for an answer that
+            // only ever looks at the length.
+            guard panelLength(cellCount: n) <= limit else { break }
             fits = n
         }
         return fits
@@ -350,11 +352,11 @@ final class NotchViewModel: ObservableObject {
     var placement: NotchPlacement { NotchPlacement(edge: edge, panelSize: panelSize) }
 
     /// Room at each end of the stack, for this edge.
-    var slack: CGFloat { slack(cellCount: visibleCount) }
-
-    func slack(cellCount: Int) -> CGFloat {
-        NotchLayout.slack(for: edge, maxCardHeight: maxCardHeight)
-    }
+    ///
+    /// It took a cell count until this round and never used it, so every read
+    /// of it was paying for `visibleCount`, which is the fit walk, to compute
+    /// an argument that was discarded.
+    var slack: CGFloat { NotchLayout.slack(for: edge, maxCardHeight: maxCardHeight) }
 
     /// How tall the tallest card may be before the panel runs off the screen.
     var maxCardHeight: CGFloat { NotchLayout.maxCardHeight(metrics) }
@@ -398,13 +400,19 @@ final class NotchViewModel: ObservableObject {
                                 edge: edge, flare: NotchLayout.curlRadius, metrics: metrics)
     }
 
+    /// How far the panel runs along the stack, which on a side edge is its
+    /// height. Split out from `panelSize` because it is the only half the fit
+    /// walk tests, and the other half measures every pinned cell's card.
+    func panelLength(cellCount: Int) -> CGFloat {
+        shapeLength(cellCount: cellCount)
+            + 2 * NotchLayout.slack(for: edge, maxCardHeight: maxCardHeight)
+    }
+
     func panelSize(cellCount: Int) -> CGSize {
-        let card = maxCardHeight
-        return NotchPlacement.panelSize(
+        NotchPlacement.panelSize(
             edge: edge,
-            length: shapeLength(cellCount: cellCount)
-                + 2 * NotchLayout.slack(for: edge, maxCardHeight: card),
-            depth: NotchLayout.tooltipDepth(for: edge, maxCardHeight: card, cardWidth: widestCardWidth)
+            length: panelLength(cellCount: cellCount),
+            depth: NotchLayout.tooltipDepth(for: edge, maxCardHeight: maxCardHeight, cardWidth: widestCardWidth)
                 + NotchLayout.bodyDepth(for: edge, metrics: metrics)
         )
     }

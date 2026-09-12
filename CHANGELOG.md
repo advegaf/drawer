@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.4
+
+- **The drawer stops getting slower the more you pin.** Hovering between cells,
+  the open and close, dragging a level and scrolling all dragged once eight or
+  ten actions were in the drawer, and the animation itself was never the cause.
+  Every piece of the drawer's geometry was measuring the text of every card,
+  thousands of times per frame: one frame laid out text 18,022 times at
+  seventeen cells, and one mouse movement 11,942 times, sixty to a hundred and
+  twenty times a second. It is two and eight now, and it no longer grows with
+  the number of actions. Nothing about the drawer looks or moves differently.
+
 ## 1.0.3
 
 - **The hover card fits what it says.** It was one fixed width for every cell,

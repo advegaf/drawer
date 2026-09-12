@@ -219,10 +219,23 @@ enum NotchLayout {
     static let headerSpacer = Design.px(20)
 
     private static func measure(_ text: String, font: NSFont) -> CGFloat {
+        #if DEBUG
+        textMeasurements += 1
+        #endif
         // Rounded up: a fraction of a point short is a truncated glyph, and a
         // fraction over is invisible.
-        (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+        return (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
     }
+
+    #if DEBUG
+    /// How many times text has been laid out since the counter was last reset.
+    ///
+    /// A counter rather than a stopwatch. What went wrong here was work done
+    /// thousands of times per frame, and a count of that work says the same
+    /// thing on a busy machine as on an idle one, which a millisecond figure
+    /// does not. `Tests/HoverCostTests.swift` is what reads it.
+    nonisolated(unsafe) static var textMeasurements = 0
+    #endif
 
     private static func lineHeight(_ font: NSFont) -> CGFloat {
         ceil(font.ascender - font.descender + font.leading)

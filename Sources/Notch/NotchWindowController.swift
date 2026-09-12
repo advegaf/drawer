@@ -460,7 +460,10 @@ final class NotchWindowController {
         // or the mouse-up that ends it would never arrive.
         guard !isDragging, let panel else { return }
         let local = localCursor(cursorLocation(), in: panel.frame)
-        panel.ignoresMouseEvents = !rects.contains { $0.contains(local) }
+        // Only when it actually changes: this runs on every mouse move
+        // anywhere on the screen, and setting it is a trip into AppKit.
+        let ignores = !rects.contains { $0.contains(local) }
+        if panel.ignoresMouseEvents != ignores { panel.ignoresMouseEvents = ignores }
     }
 
     // MARK: - Cursor tracking
@@ -700,7 +703,13 @@ final class NotchWindowController {
     private func stopCardMotion(clearPresentation: Bool = true) {
         cardMotionTimer?.invalidate()
         cardMotionTimer = nil
-        if clearPresentation { model.presentedCardPlacement = nil }
+        // Guarded: @Published notifies on every write, equal or not, and this
+        // is called on the way into every hover change, usually with nothing
+        // to clear. An unguarded write is a whole root body evaluation for no
+        // change at all.
+        if clearPresentation, model.presentedCardPlacement != nil {
+            model.presentedCardPlacement = nil
+        }
     }
 
     private func moveCard(to index: Int) {
@@ -1295,9 +1304,12 @@ final class NotchWindowController {
     /// pointer path already does.
     func cellIndex(along: CGFloat) -> Int? {
         let pitch = NotchLayout.cellPitch(for: model.edge, metrics: model.metrics)
+        // Read once, not once per slot: this runs on every mouse move.
+        let slack = model.slack
+        let first = model.firstVisibleIndex
         for slot in 0..<model.visibleCount {
-            let centre = model.slack + model.ringCenter(visible: slot)
-            if abs(along - centre) <= pitch / 2 { return model.firstVisibleIndex + slot }
+            let centre = slack + model.ringCenter(visible: slot)
+            if abs(along - centre) <= pitch / 2 { return first + slot }
         }
         return nil
     }

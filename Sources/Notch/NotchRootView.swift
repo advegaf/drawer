@@ -91,10 +91,14 @@ struct NotchRootView: View {
 
     @ViewBuilder
     private var cells: some View {
+        // Read once for the whole stack rather than inside the loop. Asking
+        // the model per cell made a body evaluation cost grow with the square
+        // of the list, since every read of `visibleCount` is a fit walk.
+        let visible = model.visibleRange
         let stack = ForEach(Array(model.cells.enumerated()), id: \.element.id) { index, cell in
             cellView(cell)
                 .disabled(!NotchWindowController.accessibilityEnabled(cell))
-                .accessibilityHidden(!model.isExpanded || index < model.firstVisibleIndex || index >= model.firstVisibleIndex + model.visibleCount)
+                .accessibilityHidden(!model.isExpanded || !visible.contains(index))
                 // Pinned to what the cell claims along the stack, or the drawn
                 // rings stop lining up with the centres `ringCenter` hands to
                 // the hover bands and the card.
