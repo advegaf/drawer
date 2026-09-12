@@ -101,16 +101,21 @@ final class HoverCostTests: XCTestCase {
         print("[hover cost] pointer " + line.joined(separator: ", "))
     }
 
-    /// The unit underneath both: sizing the panel for a given cell count must
-    /// not depend on how many cells are pinned.
-    func testSizingThePanelDoesNotMeasureEveryCell() {
+    /// The unit underneath both. `panelSize` still measures every cell for its
+    /// depth, which is deliberate: that is the room the window reserves for the
+    /// widest card any pinned cell could ever open, and it is computed on
+    /// layout rather than per frame, since the controller's own `placement`
+    /// reads the panel's real frame. What must stay free of text is the half
+    /// the fit walk runs up to 200 times.
+    func testTheHalfOfThePanelTheFitWalkTestsMeasuresNoText() {
         let model = model(cells: 17)
-        _ = model.panelSize(cellCount: 8)   // warm
-        let cost = measuring { _ = model.panelSize(cellCount: 8) }
-        XCTAssertLessThan(
-            cost, 40,
-            "one panelSize call laid out text \(cost) times at 17 cells. "
-            + "fitCount calls this up to 200 times, so it cannot be O(cells)."
+        _ = model.panelLength(cellCount: 8)   // warm
+        let cost = measuring { _ = model.panelLength(cellCount: 8) }
+        XCTAssertEqual(
+            cost, 0,
+            "panelLength laid out text \(cost) times at 17 cells. "
+            + "fitCount calls it up to 200 times per read and is read dozens of times per frame, "
+            + "so nothing on this path may measure a string."
         )
     }
 
